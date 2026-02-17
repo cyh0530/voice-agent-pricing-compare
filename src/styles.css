@@ -1,0 +1,244 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Spectral:wght@400;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #141113;
+  --panel: rgba(30, 24, 27, 0.85);
+  --text: #f2e8d8;
+  --muted: #baa888;
+  --border: rgba(255, 255, 255, 0.16);
+  --accent: #ffb703;
+  --accent-2: #00f5d4;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  font-family: "Spectral", serif;
+  background: radial-gradient(circle at 20% 15%, #33242c 0%, var(--bg) 45%);
+  min-height: 100vh;
+}
+
+.app-shell {
+  position: relative;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1rem 4rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.bg-mesh {
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none;
+  mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
+}
+
+.panel {
+  position: relative;
+  z-index: 1;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  backdrop-filter: blur(8px);
+  padding: 1rem;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: "IBM Plex Mono", monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+
+h1,
+h2 {
+  margin: 0.25rem 0 0.5rem;
+  font-family: "IBM Plex Mono", monospace;
+  letter-spacing: 0.02em;
+}
+
+.lede {
+  margin: 0;
+  max-width: 70ch;
+  color: #e6dcc8;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: end;
+}
+
+.range-wrap {
+  min-width: 280px;
+  flex: 1;
+}
+
+.range-wrap input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.button-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+button,
+select,
+input {
+  font-family: "IBM Plex Mono", monospace;
+}
+
+button {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--accent);
+}
+
+.chart-box {
+  height: 320px;
+}
+
+.legend-pills {
+  margin-bottom: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.pill {
+  border-color: var(--border);
+  opacity: 0.7;
+}
+
+.pill.active {
+  border-color: var(--accent);
+  opacity: 1;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 860px;
+}
+
+th,
+td {
+  border: 1px solid var(--border);
+  padding: 0.5rem;
+  vertical-align: top;
+}
+
+th:first-child,
+td:first-child {
+  width: 180px;
+  font-family: "IBM Plex Mono", monospace;
+  color: var(--muted);
+}
+
+.th-stack {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.th-stack input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.35rem;
+}
+
+select {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 0.35rem;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.tooltip-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.tooltip-card {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  width: 300px;
+  background: #1b171a;
+  border: 1px solid var(--border);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px);
+  transition: all 180ms ease;
+  z-index: 6;
+  padding: 0.5rem;
+}
+
+.tooltip-wrap:hover .tooltip-card {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.tooltip-card p {
+  margin: 0.3rem 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.78rem;
+}
+
+.blocked span {
+  color: #ff7f7f;
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.blocked small {
+  display: block;
+  margin-top: 0.25rem;
+  color: #f6b4b4;
+}
+
+.restriction-panel p,
+.faq-panel p,
+.footer p {
+  margin: 0.45rem 0;
+}

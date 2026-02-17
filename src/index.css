@@ -1,0 +1,168 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-7: var(--chart-7);
+  --color-chart-8: var(--chart-8);
+
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-body: "Outfit", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+
+  --color-neon: var(--neon);
+  --color-neon-dim: var(--neon-dim);
+  --color-violet: var(--violet);
+  --color-violet-dim: var(--violet-dim);
+  --color-coral: var(--coral);
+  --color-amber: var(--amber);
+  --color-cyan-accent: var(--cyan-accent);
+  --color-rose-accent: var(--rose-accent);
+  --color-livekit: var(--livekit);
+  --color-livekit-dim: var(--livekit-dim);
+  --color-pipecat: var(--pipecat);
+  --color-pipecat-dim: var(--pipecat-dim);
+}
+
+:root {
+  --radius: 0.5rem;
+
+  /* Dark-first: these ARE the defaults */
+  --background: #06070A;
+  --foreground: #E8ECF4;
+  --card: #0C0E14;
+  --card-foreground: #E8ECF4;
+  --popover: #12151E;
+  --popover-foreground: #E8ECF4;
+  --primary: #06D6A0;
+  --primary-foreground: #06070A;
+  --secondary: #181C28;
+  --secondary-foreground: #C0C7D6;
+  --muted: #12151E;
+  --muted-foreground: #6B7280;
+  --accent: #181C28;
+  --accent-foreground: #E8ECF4;
+  --destructive: #FF6B6B;
+  --border: #1E2231;
+  --input: #1E2231;
+  --ring: #06D6A0;
+
+  /* Chart series colors */
+  --chart-1: #06D6A0;
+  --chart-2: #7C5CFC;
+  --chart-3: #FFB547;
+  --chart-4: #22D3EE;
+  --chart-5: #FB7185;
+  --chart-6: #A78BFA;
+  --chart-7: #34D399;
+  --chart-8: #F97316;
+
+  /* Custom accent tokens */
+  --neon: #06D6A0;
+  --neon-dim: rgba(6, 214, 160, 0.15);
+  --violet: #7C5CFC;
+  --violet-dim: rgba(124, 92, 252, 0.15);
+
+  /* Brand colors */
+  --livekit: rgb(31, 213, 249);
+  --livekit-dim: rgba(31, 213, 249, 0.15);
+  --pipecat: rgb(165, 180, 252);
+  --pipecat-dim: rgba(165, 180, 252, 0.15);
+  --coral: #FF6B6B;
+  --amber: #FFB547;
+  --cyan-accent: #22D3EE;
+  --rose-accent: #FB7185;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+    background-image:
+      radial-gradient(ellipse 80% 60% at 50% -20%, rgba(6, 214, 160, 0.04), transparent),
+      radial-gradient(ellipse 60% 40% at 80% 100%, rgba(124, 92, 252, 0.03), transparent);
+    min-height: 100vh;
+  }
+}
+
+/* Noise texture overlay */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #1E2231;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2A3045;
+}
+
+/* Glow effects */
+.glow-green {
+  box-shadow: 0 0 20px rgba(6, 214, 160, 0.15), 0 0 60px rgba(6, 214, 160, 0.05);
+}
+.glow-violet {
+  box-shadow: 0 0 20px rgba(124, 92, 252, 0.15), 0 0 60px rgba(124, 92, 252, 0.05);
+}
+
+/* Stagger animation delays */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }
+.stagger-6 { animation-delay: 0.3s; }
+.stagger-7 { animation-delay: 0.35s; }
+.stagger-8 { animation-delay: 0.4s; }
