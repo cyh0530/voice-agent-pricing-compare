@@ -273,9 +273,13 @@ export function StackColumn({ stack, index, cost, isFocused, onUpdate, onRemove,
             {blockReason ? 'N/A' : fmt(cost.total)}
           </span>
         </div>
-        {cost.bestPlan && (
-          <div className="text-xs text-muted-foreground text-right">
-            Best plan: <span className="text-foreground font-medium">{cost.bestPlan}</span>
+        {Object.keys(cost.bestPlans).length > 0 && (
+          <div className="flex flex-wrap gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground justify-end">
+            {Object.entries(cost.bestPlans).map(([category, plan]) => (
+              <span key={category}>
+                {category}: <span className="text-foreground font-medium">{plan}</span>
+              </span>
+            ))}
           </div>
         )}
       </div>

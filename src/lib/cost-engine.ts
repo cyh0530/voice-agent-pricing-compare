@@ -7,6 +7,8 @@ import {
   LIVEKIT_LLM,
   LIVEKIT_S2S,
   PIPECAT_HOSTING,
+  MINUTES_PER_MONTH,
+  PIPECAT_CAPACITY_PLANNING,
   KRISP_VIVA,
   DAILY_KRISP_ADDON,
   PIPECAT_RECORDING,
@@ -21,6 +23,7 @@ import {
   type ProviderTier,
   CARTESIA_TIERS,
   ELEVENLABS_TURBO_TIERS,
+  DEEPGRAM_STT_PLANS,
 } from '@/data/pricing';
 
 // ─── Main Entry Point ─────────────────────────────────────
@@ -36,7 +39,7 @@ export function calculateCost(stack: StackConfig, monthlyMinutes: number): CostB
   let llm = 0;
   let tts = 0;
   let recording = 0;
-  let bestPlan: string | undefined;
+  const bestPlans: Record<string, string> = {};
 
   const isSpeechToSpeech = stack.pipeline === 'speech-to-speech';
 
@@ -47,19 +50,36 @@ export function calculateCost(stack: StackConfig, monthlyMinutes: number): CostB
     const result = calcLiveKitCloudOptimal(stack, monthlyMinutes, isSpeechToSpeech, details);
     platform = result.platform;
     transport = result.transport;
-    bestPlan = result.bestPlan;
+    Object.assign(bestPlans, result.bestPlans);
     stt = result.stt;
     llm = result.llm;
     tts = result.tts;
     recording = result.recording;
   } else if (stack.platform === 'pipecat' && stack.hosting === 'cloud') {
-    platform = monthlyMinutes * PIPECAT_HOSTING.agent1x.activePerMin;
+    // Active: billed per active session minute
+    const activeCost = monthlyMinutes * PIPECAT_HOSTING.agent1x.activePerMin;
     details.push({
       category: 'Platform',
-      label: 'Pipecat Agent-1x',
-      formula: `${monthlyMinutes} min × $${PIPECAT_HOSTING.agent1x.activePerMin}/min`,
-      amount: platform,
+      label: 'Pipecat Agent-1x (active)',
+      formula: `${monthlyMinutes.toLocaleString()} min × $${PIPECAT_HOSTING.agent1x.activePerMin}/min`,
+      amount: activeCost,
     });
+
+    // Reserved: auto-sized min-agents running 24/7 for capacity headroom.
+    // Formula: Optimal Reserved = MAX(Baseline, CPS × Idle Creation Delay)
+    //   Baseline = avg concurrent sessions = monthlyMinutes / 43,200
+    //   CPS ≈ peak concurrent / avg session duration in seconds
+    //   Peak concurrent ≈ baseline × peak-to-avg ratio
+    const R = calcOptimalReserved(monthlyMinutes);
+    const reservedCost = R * PIPECAT_HOSTING.agent1x.reservedPerMin * MINUTES_PER_MONTH;
+    details.push({
+      category: 'Platform',
+      label: 'Pipecat Agent-1x (reserved)',
+      formula: `${R} min-agent${R !== 1 ? 's' : ''} × $${PIPECAT_HOSTING.agent1x.reservedPerMin}/min × ${MINUTES_PER_MONTH.toLocaleString()} min/mo`,
+      amount: reservedCost,
+    });
+
+    platform = activeCost + reservedCost;
 
     transport = 0;
     details.push({ category: 'Transport', label: 'Daily WebRTC Voice (1:1 free)', formula: 'Free on Pipecat Cloud', amount: 0 });
@@ -72,14 +92,13 @@ export function calculateCost(stack: StackConfig, monthlyMinutes: number): CostB
         details.push({ category: 'S2S Model', label: stack.speechToSpeechModel, formula: `${monthlyMinutes} min × $${s2sRate.perMinute}/min`, amount: s2sCost });
       }
     } else {
-      const inf = calcDirectInference(stack, monthlyMinutes, details);
+      const inf = calcDirectInference(stack, monthlyMinutes, details, bestPlans);
       stt = inf.stt; llm = inf.llm; tts = inf.tts;
     }
   } else if (stack.hosting === 'self-hosted') {
     // Azure hosting cost (folded into platform)
     const hostingResult = calcAzureHosting(monthlyMinutes, details);
     platform = hostingResult.cost;
-    bestPlan = hostingResult.recommendation;
 
     if (stack.platform === 'pipecat') {
       // Self-hosted Pipecat still needs Daily WebRTC transport
@@ -98,7 +117,7 @@ export function calculateCost(stack: StackConfig, monthlyMinutes: number): CostB
         details.push({ category: 'S2S Model', label: stack.speechToSpeechModel, formula: `${monthlyMinutes} min × $${s2sRate.perMinute}/min`, amount: s2sCost });
       }
     } else {
-      const inf = calcDirectInference(stack, monthlyMinutes, details);
+      const inf = calcDirectInference(stack, monthlyMinutes, details, bestPlans);
       stt = inf.stt; llm = inf.llm; tts = inf.tts;
     }
   }
@@ -122,7 +141,7 @@ export function calculateCost(stack: StackConfig, monthlyMinutes: number): CostB
     }
   }
 
-  return { platform, transport, noiseCancellation, stt, llm, tts, recording, total, details, bestPlan, warnings };
+  return { platform, transport, noiseCancellation, stt, llm, tts, recording, total, details, bestPlans, warnings };
 }
 
 // ─── LiveKit Cloud Plan Optimizer ─────────────────────────
@@ -185,29 +204,29 @@ function calcLiveKitCloudOptimal(
   minutes: number,
   isSpeechToSpeech: boolean,
   details: CostDetail[]
-): { platform: number; transport: number; recording: number; stt: number; llm: number; tts: number; bestPlan: string } {
+): { platform: number; transport: number; recording: number; stt: number; llm: number; tts: number; bestPlans: Record<string, string> } {
   // Pick cheapest plan by total cost
   let bestTotal = Infinity;
-  let bestPlan = LIVEKIT_PLANS[0].name;
+  let bestPlanName = LIVEKIT_PLANS[0].name;
 
   for (const plan of LIVEKIT_PLANS) {
     const total = calcPlanFullCost(plan, stack, minutes, isSpeechToSpeech);
     if (total < bestTotal) {
       bestTotal = total;
-      bestPlan = plan.name;
+      bestPlanName = plan.name;
     }
   }
 
   // Compute and detail each cost line for the chosen plan
-  const plan = LIVEKIT_PLANS.find((p) => p.name === bestPlan)!;
-  const isScale = bestPlan === 'Scale';
+  const plan = LIVEKIT_PLANS.find((p) => p.name === bestPlanName)!;
+  const isScale = bestPlanName === 'Scale';
 
   // Platform: base fee + agent overage
   const agentOverage = Math.max(0, minutes - plan.includedAgentMinutes);
   const platformBase = plan.monthlyFee + agentOverage * plan.agentMinuteRate;
   details.push({
     category: 'Platform',
-    label: `LiveKit ${bestPlan} plan`,
+    label: `LiveKit ${bestPlanName} plan`,
     formula: `$${plan.monthlyFee}/mo base + ${agentOverage > 0 ? `${agentOverage} overage min × $${plan.agentMinuteRate}/min` : 'no overage'}`,
     amount: platformBase,
   });
@@ -304,7 +323,7 @@ function calcLiveKitCloudOptimal(
     details.push({
       category: 'Platform',
       label: 'Inference credits',
-      formula: `-$${credit.toFixed(2)} included with ${bestPlan} plan`,
+      formula: `-$${credit.toFixed(2)} included with ${bestPlanName} plan`,
       amount: -credit,
     });
     // Distribute credit proportionally
@@ -316,7 +335,8 @@ function calcLiveKitCloudOptimal(
 
   const totalPlatform = platformBase + obsCost - Math.min(plan.includedInferenceCredits, rawInference);
 
-  return { platform: totalPlatform, transport: webRtcCost + dataTransferCost, recording: recordingCost, stt, llm, tts, bestPlan };
+  const bestPlans: Record<string, string> = { Platform: bestPlanName };
+  return { platform: totalPlatform, transport: webRtcCost + dataTransferCost, recording: recordingCost, stt, llm, tts, bestPlans };
 }
 
 // Cost-only helpers (no detail push) for plan comparison
@@ -487,13 +507,15 @@ function fmtUnits(n: number): string {
 function calcDirectInference(
   stack: StackConfig,
   minutes: number,
-  details: CostDetail[]
+  details: CostDetail[],
+  bestPlans: Record<string, string>,
 ): { stt: number; llm: number; tts: number } {
   const llm = calcDirectLlm(stack.llmModel, minutes, details);
 
   const isCartesiaStt = stack.sttModel === 'cartesia-ink-whisper';
   const isCartesiaTts = stack.ttsModel === 'cartesia-sonic-3';
   const isElevenLabsTts = stack.ttsModel === 'elevenlabs-turbo-v2.5';
+  const isDeepgramStt = stack.sttModel.startsWith('deepgram-');
 
   let stt = 0;
   let tts = 0;
@@ -518,6 +540,8 @@ function calcDirectInference(
           const sttShare = sttCredits / totalCredits;
           stt = cost * sttShare;
           tts = cost * (1 - sttShare);
+          bestPlans['STT'] = `Cartesia ${tier.name}`;
+          bestPlans['TTS'] = `Cartesia ${tier.name}`;
 
           details.push({
             category: 'STT',
@@ -533,6 +557,7 @@ function calcDirectInference(
           });
         } else if (isCartesiaStt) {
           stt = cost;
+          bestPlans['STT'] = `Cartesia ${tier.name}`;
           details.push({
             category: 'STT',
             label: `Cartesia Ink Whisper (${tier.name})`,
@@ -541,6 +566,7 @@ function calcDirectInference(
           });
         } else {
           tts = cost;
+          bestPlans['TTS'] = `Cartesia ${tier.name}`;
           details.push({
             category: 'TTS',
             label: `Cartesia Sonic 3 (${tier.name})`,
@@ -551,23 +577,25 @@ function calcDirectInference(
       }
     }
 
-    // Handle non-Cartesia side
     if (!isCartesiaStt) {
-      stt = calcDirectStt(stack.sttModel, minutes, details);
+      stt = isDeepgramStt
+        ? calcDeepgramStt(stack.sttModel, minutes, details, bestPlans)
+        : calcDirectStt(stack.sttModel, minutes, details);
     }
     if (!isCartesiaTts) {
       if (isElevenLabsTts) {
-        tts = calcElevenLabsTts(minutes, details);
+        tts = calcElevenLabsTts(minutes, details, bestPlans);
       } else {
         tts = calcDirectTts(stack.ttsModel, minutes, details);
       }
     }
   } else {
-    // No Cartesia models — handle STT and TTS independently
-    stt = calcDirectStt(stack.sttModel, minutes, details);
+    stt = isDeepgramStt
+      ? calcDeepgramStt(stack.sttModel, minutes, details, bestPlans)
+      : calcDirectStt(stack.sttModel, minutes, details);
 
     if (isElevenLabsTts) {
-      tts = calcElevenLabsTts(minutes, details);
+      tts = calcElevenLabsTts(minutes, details, bestPlans);
     } else {
       tts = calcDirectTts(stack.ttsModel, minutes, details);
     }
@@ -576,7 +604,7 @@ function calcDirectInference(
   return { stt, llm, tts };
 }
 
-function calcElevenLabsTts(minutes: number, details: CostDetail[]): number {
+function calcElevenLabsTts(minutes: number, details: CostDetail[], bestPlans: Record<string, string>): number {
   const ttsMinutes = minutes * ASSUMPTIONS.ttsDutyRatio;
   const totalChars = ttsMinutes * ASSUMPTIONS.avgCharsPerMinuteTTS;
 
@@ -584,6 +612,7 @@ function calcElevenLabsTts(minutes: number, details: CostDetail[]): number {
   if (!result) return 0;
 
   const { tier, cost, overage } = result;
+  bestPlans['TTS'] = `ElevenLabs ${tier.name}`;
 
   let formula = `${fmtUnits(totalChars)} chars → ${tier.name} $${tier.monthlyFee}/mo (${fmtUnits(tier.includedUnits)} included)`;
   if (overage > 0) {
@@ -598,6 +627,55 @@ function calcElevenLabsTts(minutes: number, details: CostDetail[]): number {
   });
 
   return cost;
+}
+
+// ─── Deepgram STT Plan Optimizer ─────────────────────────
+// Compares Pay As You Go vs Growth ($4K/year minimum commitment).
+// Growth has lower per-minute rates but requires a minimum monthly spend
+// of $333.33 ($4K ÷ 12). The optimizer picks whichever plan is cheaper.
+
+function calcDeepgramStt(model: string, minutes: number, details: CostDetail[], bestPlans: Record<string, string>): number {
+  const sttMinutes = minutes * ASSUMPTIONS.sttDutyRatio;
+
+  let bestPlanName = '';
+  let bestCost = Infinity;
+
+  for (const plan of DEEPGRAM_STT_PLANS) {
+    const rate = plan.rates[model];
+    if (rate === undefined) continue;
+    const usageCost = sttMinutes * rate;
+    const monthlyMin = plan.minAnnualCommitment / 12;
+    const cost = Math.max(monthlyMin, usageCost);
+    if (cost < bestCost) {
+      bestCost = cost;
+      bestPlanName = plan.name;
+    }
+  }
+
+  if (!bestPlanName) return 0;
+  bestPlans['STT'] = `Deepgram ${bestPlanName}`;
+
+  const chosenPlan = DEEPGRAM_STT_PLANS.find(p => p.name === bestPlanName)!;
+  const rate = chosenPlan.rates[model]!;
+  const usageCost = sttMinutes * rate;
+  const monthlyMin = chosenPlan.minAnnualCommitment / 12;
+  const hitsMinimum = chosenPlan.minAnnualCommitment > 0 && usageCost < monthlyMin;
+
+  let formula: string;
+  if (hitsMinimum) {
+    formula = `${minutes} min × ${ASSUMPTIONS.sttDutyRatio * 100}% duty × $${rate}/min = $${usageCost.toFixed(2)}, but ${bestPlanName} min $${monthlyMin.toFixed(0)}/mo ($${(chosenPlan.minAnnualCommitment / 1000).toFixed(0)}K/yr) (direct)`;
+  } else {
+    formula = `${minutes} min × ${ASSUMPTIONS.sttDutyRatio * 100}% duty × $${rate}/min (Deepgram ${bestPlanName}) (direct)`;
+  }
+
+  details.push({
+    category: 'STT',
+    label: `${model} (Deepgram ${bestPlanName})`,
+    formula,
+    amount: bestCost,
+  });
+
+  return bestCost;
 }
 
 // ─── Daily WebRTC Transport (tiered) ──────────────────────
@@ -740,7 +818,7 @@ function resolveSourceUrl(detail: CostDetail): string | undefined {
 
   // ── Pipecat Cloud ──
   // Verified on daily.co/pricing/pipecat-cloud: heading is lowercase "agent-1x"
-  if (label === 'Pipecat Agent-1x')
+  if (label.startsWith('Pipecat Agent-1x'))
     return `https://www.daily.co/pricing/pipecat-cloud/#:~:text=${frag('agent-1x')}`;
   if (label.includes('Daily WebRTC Voice'))
     return 'https://www.daily.co/pricing/pipecat-cloud/';
@@ -771,11 +849,13 @@ function resolveSourceUrl(detail: CostDetail): string | undefined {
     if (label.includes('gemini-live')) return 'https://ai.google.dev/pricing';
   }
 
-  // ── Tier-Optimized Providers (label includes proper-cased name + tier) ──
+  // ── Tier-Optimized Providers (label includes proper-cased name + tier/plan) ──
   if (label.includes('Cartesia Ink Whisper') || label.includes('Cartesia Sonic 3'))
     return 'https://cartesia.ai/pricing';
   if (label.includes('ElevenLabs Turbo v2.5'))
     return `https://elevenlabs.io/pricing#:~:text=${frag('Flash')}`;
+  if (label.includes('Deepgram'))
+    return 'https://deepgram.com/pricing';
 
   // ── LiveKit Inference (label = raw model ID, formula lacks "(direct)") ──
   // Verified on livekit.io/pricing/inference: all model names are exact matches
@@ -807,12 +887,43 @@ function resolveSourceUrl(detail: CostDetail): string | undefined {
   return undefined;
 }
 
+// ─── Pipecat Reserved Instance Calculator ─────────────────
+// Capacity planning formula from docs:
+//   Optimal Reserved = MAX(Baseline Sessions, CPS × Idle Creation Delay)
+// Baseline = average concurrent sessions derived from monthly minutes.
+// CPS = peak call arrival rate, estimated from peak concurrent / avg session duration.
+
+function calcOptimalReserved(monthlyMinutes: number): number {
+  if (monthlyMinutes <= 0) return 0;
+  const avgConcurrent = monthlyMinutes / MINUTES_PER_MONTH;
+  const baseline = avgConcurrent;
+
+  const peakConcurrent = avgConcurrent * ASSUMPTIONS.peakToAvgRatio;
+  const avgSessionSec = ASSUMPTIONS.avgSessionMinutes * 60;
+  const cps = peakConcurrent / avgSessionSec;
+  const burst = cps * PIPECAT_CAPACITY_PLANNING.idleCreationDelaySec;
+
+  return Math.ceil(Math.max(baseline, burst));
+}
+
 // ─── Chart Data Generator ─────────────────────────────────
 
-const CHART_TICKS = [0, 500, 1000, 2000, 5000, 10000, 20000, 50000, 75000, 100000];
+const BASE_CHART_TICKS = [0, 500, 1000, 2000, 5000, 10000, 20000, 50000, 75000, 100000];
 
-export function generateChartData(stack: StackConfig): ChartPoint[] {
-  return CHART_TICKS.map((minutes) => ({
+function buildChartTicks(maxMinutes: number): number[] {
+  if (maxMinutes <= 100000) return BASE_CHART_TICKS;
+
+  const ceiling = maxMinutes * 1.2;
+  const candidates = [150000, 200000, 300000, 500000, 750000, 1000000, 1500000, 2000000, 3000000, 5000000, 10000000];
+  const extra = candidates.filter((t) => t <= ceiling);
+  if (extra.length === 0 || extra[extra.length - 1] < maxMinutes) {
+    extra.push(Math.ceil(maxMinutes / 50000) * 50000);
+  }
+  return [...BASE_CHART_TICKS, ...extra];
+}
+
+export function generateChartData(stack: StackConfig, maxMinutes = 100000): ChartPoint[] {
+  return buildChartTicks(maxMinutes).map((minutes) => ({
     minutes,
     cost: calculateCost(stack, minutes).total,
   }));

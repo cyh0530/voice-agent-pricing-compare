@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Slider } from '@/components/ui/slider';
 
 const TICKS = [1000, 5000, 10000, 25000, 50000, 100000];
@@ -36,6 +36,10 @@ export function MinutesSlider({ value, onChange }: MinutesSliderProps) {
   const formatNumber = (n: number) =>
     n >= 1000 ? `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}K` : String(n);
 
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const sliderPos = useMemo(() => valueToSlider(value), [value]);
 
   const handleSliderChange = useCallback(
@@ -46,14 +50,56 @@ export function MinutesSlider({ value, onChange }: MinutesSliderProps) {
     [value, onChange]
   );
 
+  const commitEdit = useCallback(() => {
+    setEditing(false);
+    const parsed = parseInt(draft.replace(/[^0-9]/g, ''), 10);
+    if (isNaN(parsed)) return;
+    const clamped = Math.max(MIN_VAL, parsed);
+    if (clamped !== value) onChange(clamped);
+  }, [draft, value, onChange]);
+
+  const startEdit = useCallback(() => {
+    setDraft(String(value));
+    setEditing(true);
+    requestAnimationFrame(() => inputRef.current?.select());
+  }, [value]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        commitEdit();
+      } else if (e.key === 'Escape') {
+        setEditing(false);
+      }
+    },
+    [commitEdit]
+  );
+
   return (
     <div className="space-y-5">
       <div className="flex items-baseline justify-between gap-4">
         <label className="text-base font-medium text-muted-foreground">Monthly Minutes</label>
         <div className="flex items-baseline gap-2">
-          <span className="font-mono text-3xl font-semibold text-neon tabular-nums">
-            {value.toLocaleString()}
-          </span>
+          {editing ? (
+            <input
+              ref={inputRef}
+              type="text"
+              inputMode="numeric"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={handleKeyDown}
+              className="w-40 bg-transparent text-right font-mono text-3xl font-semibold text-neon tabular-nums outline-none border-b-2 border-neon/50"
+            />
+          ) : (
+            <button
+              onClick={startEdit}
+              className="font-mono text-3xl font-semibold text-neon tabular-nums cursor-text hover:border-b-2 hover:border-neon/30 transition-colors"
+            >
+              {value.toLocaleString()}
+            </button>
+          )}
           <span className="text-sm text-muted-foreground">min/mo</span>
         </div>
       </div>

@@ -27,14 +27,27 @@ export const META: Record<string, PricingMeta> = {
       'Session overhead: 1.15× for OpenAI (cheap caching), 1.3× for Gemini',
     ],
   },
+  deepgram: {
+    sourceUrls: ['https://deepgram.com/pricing'],
+    lastVerifiedAt: '2026-02-18',
+    assumptions: [
+      'Pay As You Go: Nova-3 mono $0.0077/min, multi $0.0092/min — no minimum',
+      'Growth: Nova-3 mono $0.0065/min, multi $0.0078/min — $4K/yr minimum commitment ($333/mo)',
+      'Optimizer auto-selects cheapest plan: PAYG below ~43K STT min/mo, Growth above',
+      'Speaker Diarization add-on ($0.0020/min PAYG) not included — add separately if needed',
+    ],
+  },
   pipecat: {
     sourceUrls: [
       'https://www.daily.co/pricing/pipecat-cloud/',
       'https://www.daily.co/pricing/webrtc-infrastructure/',
     ],
-    lastVerifiedAt: '2026-02-17',
+    lastVerifiedAt: '2026-02-20',
     assumptions: [
-      'Agent-1x profile ($0.01/min active)',
+      'Agent-1x profile: $0.01/min active (on-demand), $0.0005/min reserved (24/7)',
+      'Reserved instances run continuously (43,200 min/month); sessions within reserved capacity incur no additional active charge',
+      'Sessions exceeding reserved capacity fall back to on-demand active pricing ($0.01/min)',
+      'Capacity planning: Optimal Reserved = MAX(Baseline Sessions, CPS × Idle Creation Delay), Idle Creation Delay ≈ 30s',
       'Daily WebRTC 1:1 voice free on Pipecat Cloud',
       'Daily volume discounts applied for standalone transport',
     ],
@@ -153,11 +166,20 @@ export const LIVEKIT_S2S: Record<string, { perMinute: number }> = {
 
 // ─── Pipecat Cloud ────────────────────────────────────────
 
+export const MINUTES_PER_MONTH = 43_200; // 30 days × 24 hours × 60 minutes
+
 export const PIPECAT_HOSTING = {
   agent1x: {
     activePerMin: 0.01,
     reservedPerMin: 0.0005,
   },
+};
+
+// Capacity planning for reserved instances (min-agents).
+// Formula: Optimal Reserved = MAX(Baseline Sessions, CPS × Idle Creation Delay)
+// Source: https://docs.pipecat.ai/pipecat-cloud/capacity-planning
+export const PIPECAT_CAPACITY_PLANNING = {
+  idleCreationDelaySec: 30,
 };
 
 export const PIPECAT_TRANSPORT = {
@@ -212,13 +234,11 @@ export const DAILY_TIERS: DailyTier[] = [
 
 // ─── Direct Provider Pricing (self-hosted / Pipecat BYOP) ──
 
-// STT: per minute
+// STT: per minute (non-Deepgram; Deepgram uses DEEPGRAM_STT_PLANS below)
 export const DIRECT_STT: Record<string, number> = {
   'assemblyai-universal-streaming':              0.0025,  // $0.15/hr
   'assemblyai-universal-streaming-multilingual': 0.0025,
   'cartesia-ink-whisper':                        0.0022,  // Scale plan ~$0.13/hr
-  'deepgram-nova-3':                             0.0065,  // Growth plan
-  'deepgram-nova-3-multilingual':                0.0078,
 };
 
 // TTS: per million characters
@@ -293,6 +313,8 @@ export const ASSUMPTIONS = {
   avgOutputTokensPerMinute: 400,  // agent response tokens
   cacheHitRate: 0.3,              // 30% of input tokens are cached
   avgDownstreamMBPerMinute: 0.24, // Opus voice ~32kbps downstream to participant
+  avgSessionMinutes: 10,          // typical voice agent session length
+  peakToAvgRatio: 2,              // peak concurrent ≈ 2× average (standard traffic assumption)
 };
 
 // ─── Provider Subscription Tiers ─────────────────────────
@@ -326,6 +348,37 @@ export const ELEVENLABS_TURBO_TIERS: ProviderTier[] = [
   { name: 'Pro',      monthlyFee: 99,    includedUnits: 1_000_000,  overageRate: 0.00012 },
   { name: 'Scale',    monthlyFee: 330,   includedUnits: 4_000_000,  overageRate: 0.00009 },
   { name: 'Business', monthlyFee: 1_320, includedUnits: 22_000_000, overageRate: 0.00006 },
+];
+
+// ─── Deepgram STT Plans ──────────────────────────────────
+// Source: https://deepgram.com/pricing (Feb 2026)
+// Pay As You Go: no minimum, standard rates
+// Growth: $4K/year minimum commitment (~$333.33/mo), ~15-20% discount on per-minute rates
+// The cost engine evaluates both and picks whichever is cheaper at a given volume.
+
+export interface DeepgramSttPlan {
+  name: string;
+  minAnnualCommitment: number;
+  rates: Record<string, number>;
+}
+
+export const DEEPGRAM_STT_PLANS: DeepgramSttPlan[] = [
+  {
+    name: 'Pay As You Go',
+    minAnnualCommitment: 0,
+    rates: {
+      'deepgram-nova-3':              0.0077,
+      'deepgram-nova-3-multilingual': 0.0092,
+    },
+  },
+  {
+    name: 'Growth',
+    minAnnualCommitment: 4000,
+    rates: {
+      'deepgram-nova-3':              0.0065,
+      'deepgram-nova-3-multilingual': 0.0078,
+    },
+  },
 ];
 
 // ─── Restrictions / Notes ─────────────────────────────────

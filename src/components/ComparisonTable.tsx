@@ -54,11 +54,8 @@ export function ComparisonTable({
         </div>
       </div>
 
-      <div className="relative">
-        {stacks.length > 4 && (
-          <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-linear-to-l from-background to-transparent z-10" />
-        )}
-        <div className={`${stacks.length > 4 ? 'overflow-x-auto pb-2 -mx-2 px-2' : ''}`}>
+      <div>
+        <div className="overflow-x-auto pb-2 -mx-2 px-2">
           <div className="grid gap-4" style={{
             gridTemplateColumns: `repeat(${stacks.length}, minmax(260px, 1fr))`,
           }}>

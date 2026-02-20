@@ -31,7 +31,7 @@ export function CostChart({ stacks, monthlyMinutes, focusedStackId, onFocusStack
     const seriesData = visibleStacks.map((stack, i) => ({
       stack,
       color: CHART_COLORS[i % CHART_COLORS.length],
-      points: generateChartData(stack),
+      points: generateChartData(stack, monthlyMinutes),
     }));
 
     return {
@@ -56,7 +56,7 @@ export function CostChart({ stacks, monthlyMinutes, focusedStackId, onFocusStack
         };
       }),
     };
-  }, [visibleStacks, focusedStackId]);
+  }, [visibleStacks, focusedStackId, monthlyMinutes]);
 
   const options = useMemo(
     () => ({

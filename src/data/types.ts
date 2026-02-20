@@ -49,7 +49,7 @@ export interface CostBreakdown {
   recording: number;
   total: number;
   details: CostDetail[];
-  bestPlan?: string;
+  bestPlans: Record<string, string>;
   warnings: string[];
 }
 

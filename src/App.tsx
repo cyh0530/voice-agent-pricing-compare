@@ -10,7 +10,7 @@ import { DEFAULT_STACKS, DEFAULT_MONTHLY_MINUTES, createNewStack } from '@/data/
 import { calculateCost } from '@/lib/cost-engine';
 import { decodeState, pushState } from '@/lib/url-state';
 import { CHART_COLORS } from '@/data/compatibility';
-import { RotateCcw, Trophy } from 'lucide-react';
+import { ExternalLink, RotateCcw, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { StackConfig } from '@/data/types';
 
@@ -159,18 +159,45 @@ function App() {
           <section>
             <FAQ />
           </section>
+
+          {/* Pricing Sources */}
+          <section className="rounded-xl border border-border bg-card/50 p-4 sm:p-6">
+            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">Pricing Sources</h3>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: 'LiveKit Cloud', href: 'https://livekit.io/pricing' },
+                { label: 'LiveKit Inference', href: 'https://livekit.io/pricing/inference' },
+                { label: 'Pipecat Cloud', href: 'https://www.daily.co/pricing/pipecat-cloud/' },
+                { label: 'Daily WebRTC', href: 'https://www.daily.co/pricing/webrtc-infrastructure/' },
+                { label: 'Deepgram', href: 'https://deepgram.com/pricing' },
+                { label: 'AssemblyAI', href: 'https://www.assemblyai.com/pricing' },
+                { label: 'Cartesia', href: 'https://cartesia.ai/pricing' },
+                { label: 'ElevenLabs', href: 'https://elevenlabs.io/pricing' },
+                { label: 'OpenAI Realtime', href: 'https://developers.openai.com/api/docs/models/gpt-realtime' },
+                { label: 'Gemini Live', href: 'https://ai.google.dev/gemini-api/docs/pricing#gemini-2.5-flash-native-audio' },
+                { label: 'Azure', href: 'https://azure.microsoft.com/en-us/pricing/' },
+              ].map(({ label, href }) => (
+                <a
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noopener"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-accent/30 px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground hover:border-border transition-all"
+                >
+                  {label}
+                  <ExternalLink className="h-3 w-3 opacity-50" />
+                </a>
+              ))}
+            </div>
+          </section>
         </main>
 
         {/* Footer */}
         <footer className="border-t border-border/40 bg-card/30">
-          <div className="mx-auto max-w-[1440px] px-6 py-5 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="mx-auto max-w-[1440px] px-6 py-5 sm:px-8 flex items-center justify-center">
             <p className="text-sm text-muted-foreground">
               Pricing snapshot as of Feb 2026. Not affiliated with LiveKit or Daily/Pipecat.
             </p>
-            <div className="flex items-center gap-5 text-sm text-muted-foreground">
-              <a href="https://livekit.io/pricing" target="_blank" rel="noopener" className="hover:text-neon transition-colors">LiveKit Pricing</a>
-              <a href="https://www.daily.co/pricing/pipecat-cloud/" target="_blank" rel="noopener" className="hover:text-violet transition-colors">Pipecat Pricing</a>
-            </div>
           </div>
         </footer>
       </div>
