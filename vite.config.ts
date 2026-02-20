@@ -1,14 +1,19 @@
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import tailwindcss from '@tailwindcss/vite'
-import path from 'path'
+import tsConfigPaths from 'vite-tsconfig-paths'
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
-  },
   base: '/voice-agent-pricing-compare/',
+  plugins: [
+    tsConfigPaths(),
+    tanstackStart({
+      prerender: {
+        enabled: true,
+        crawlLinks: true,
+        autoSubfolderIndex: true,
+      },
+    }),
+    tailwindcss(),
+  ],
 })
