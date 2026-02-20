@@ -7,7 +7,7 @@ export function Header() {
         <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-2.5 mb-5 flex items-start gap-2.5">
           <Info className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
           <p className="text-sm text-amber-200/80 leading-relaxed">
-            These are <span className="font-medium text-amber-300">estimates</span> based on publicly available pricing. Actual costs may vary — this tool may not be 100% accurate.
+            These are <span className="font-medium text-amber-300">estimates</span> based on publicly available pricing. Actual costs may vary — this tool may not be 100% accurate. At large scale, enterprise discounts may apply.
           </p>
         </div>
         <div className="flex flex-wrap items-start justify-between gap-4">
