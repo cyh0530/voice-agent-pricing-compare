@@ -336,6 +336,10 @@ function calcLiveKitCloudOptimal(
   const totalPlatform = platformBase + obsCost - Math.min(plan.includedInferenceCredits, rawInference);
 
   const bestPlans: Record<string, string> = { Platform: bestPlanName };
+  if (!isSpeechToSpeech) {
+    bestPlans['STT'] = bestPlanName;
+    bestPlans['TTS'] = bestPlanName;
+  }
   return { platform: totalPlatform, transport: webRtcCost + dataTransferCost, recording: recordingCost, stt, llm, tts, bestPlans };
 }
 
