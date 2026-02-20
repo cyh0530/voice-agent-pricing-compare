@@ -86,11 +86,15 @@ export function FAQ() {
               <ul className="space-y-2 mt-1">
                 <li className="flex items-start gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground mt-1.5 shrink-0" />
-                  <span><strong className="text-foreground/90">STT duty cycle:</strong> 70% — user speaks ~70% of session time</span>
+                  <span><strong className="text-foreground/90">STT duty cycle:</strong> 66% — user speaks ~66% of session time</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground mt-1.5 shrink-0" />
-                  <span><strong className="text-foreground/90">TTS duty cycle:</strong> 30% — agent speaks ~30% of session time</span>
+                  <span><strong className="text-foreground/90">TTS duty cycle:</strong> 24% — agent speaks ~24% of session time</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground mt-1.5 shrink-0" />
+                  <span><strong className="text-foreground/90">Silence:</strong> ~10% — pauses, thinking time, and turn transitions</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground mt-1.5 shrink-0" />

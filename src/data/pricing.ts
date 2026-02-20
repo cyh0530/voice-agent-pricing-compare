@@ -23,7 +23,7 @@ export const META: Record<string, PricingMeta> = {
     assumptions: [
       'OpenAI gpt-realtime (GA): audio input 10 tok/sec @ $32/1M, output 20 tok/sec @ $64/1M, cached $0.40/1M',
       'Gemini 2.5 Flash Native Audio (Live API): audio ~25 tok/sec (est.), input $3/1M, output $12/1M',
-      '70/30 duty cycle applied (user speaks 70%, agent speaks 30%)',
+      '66/24 duty cycle applied (user speaks 66%, agent speaks 24%, ~10% silence)',
       'Session overhead: 1.15× for OpenAI (cheap caching), 1.3× for Gemini',
     ],
   },
@@ -261,31 +261,31 @@ export const DIRECT_LLM: Record<string, { input: number; output: number }> = {
 //   Audio input:  10 tokens/sec (1 per 100ms) → 600 tokens/min @ $32/1M
 //   Audio output: 20 tokens/sec (1 per 50ms)  → 1,200 tokens/min @ $64/1M
 //   Cached audio input: $0.40/1M (nearly free — context re-processing is cheap)
-//   With 70/30 duty cycle (user speaks 70%, agent 30%):
-//     Input:  0.7 × 600 = 420 tokens → $0.01344/min
-//     Output: 0.3 × 1,200 = 360 tokens → $0.02304/min
-//     Marginal (new audio only): $0.0365/min
+//   With 66/24 duty cycle (user speaks 66%, agent 24%, ~10% silence):
+//     Input:  0.66 × 600 = 396 tokens → $0.01267/min
+//     Output: 0.24 × 1,200 = 288 tokens → $0.01843/min
+//     Marginal (new audio only): $0.0311/min
 //   Session overhead: entire conversation is re-sent each turn, but cached
 //     audio input at $0.40/1M makes this nearly free (~1.15× multiplier).
-//   Estimated average: $0.0365 × 1.15 ≈ $0.042/min
+//   Estimated average: $0.0311 × 1.15 ≈ $0.036/min
 //
 // Gemini Live (gemini-2.5-flash-native-audio, Live API):
 //   Source: https://ai.google.dev/gemini-api/docs/pricing#gemini-2.5-flash-native-audio
 //   Audio tokenization: ~25 tokens/sec (community-measured estimate)
 //   Audio input:  $3.00/1M tokens, Audio output: $12.00/1M tokens
-//   With 70/30 duty cycle:
-//     Input:  0.7 × 1,500 = 1,050 tokens → $0.00315/min
-//     Output: 0.3 × 1,500 = 450 tokens → $0.0054/min
-//     Marginal: $0.0086/min
+//   With 66/24 duty cycle (user 66%, agent 24%, ~10% silence):
+//     Input:  0.66 × 1,500 = 990 tokens → $0.00297/min
+//     Output: 0.24 × 1,500 = 360 tokens → $0.00432/min
+//     Marginal: $0.0073/min
 //   Session overhead: ~1.3× (cheap tokens, minimal context impact)
-//   Estimated average: $0.0086 × 1.3 ≈ $0.011/min
+//   Estimated average: $0.0073 × 1.3 ≈ $0.0095/min
 //
 // Note: actual costs vary with session length, turn frequency, system prompt
 // size, and context management strategy. These are estimates for a typical
 // 10-minute voice agent session.
 export const DIRECT_S2S: Record<string, { perMinute: number }> = {
-  'openai-realtime': { perMinute: 0.042 },
-  'gemini-live':     { perMinute: 0.011 },
+  'openai-realtime': { perMinute: 0.036 },
+  'gemini-live':     { perMinute: 0.0095 },
 };
 
 // ─── Azure Self-Hosting ───────────────────────────────────
@@ -306,8 +306,8 @@ export const AZURE_AKS = {
 // ─── Assumptions for Conversion ───────────────────────────
 
 export const ASSUMPTIONS = {
-  sttDutyRatio: 0.7,              // user speaks ~70% of session time
-  ttsDutyRatio: 0.3,              // agent speaks ~30% of session time
+  sttDutyRatio: 0.66,             // user speaks ~66% of session time
+  ttsDutyRatio: 0.24,             // agent speaks ~24% of session time (~10% is silence)
   avgCharsPerMinuteTTS: 900,      // ~150 words/min * ~6 chars/word (during active TTS)
   avgInputTokensPerMinute: 800,   // conversation context growing
   avgOutputTokensPerMinute: 400,  // agent response tokens
