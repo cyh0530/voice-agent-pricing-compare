@@ -24,6 +24,7 @@ export const STT_OPTIONS: SelectOption<SttModel>[] = [
   { value: 'cartesia-ink-whisper', label: 'Ink Whisper', provider: 'Cartesia' },
   { value: 'deepgram-nova-3', label: 'Nova-3', provider: 'Deepgram' },
   { value: 'deepgram-nova-3-multilingual', label: 'Nova-3 Multilingual', provider: 'Deepgram' },
+  { value: 'soniox-realtime', label: 'Realtime', provider: 'Soniox' },
 ];
 
 export const LLM_OPTIONS: SelectOption<LlmModel>[] = [

@@ -9,7 +9,8 @@ export type SttModel =
   | 'assemblyai-universal-streaming-multilingual'
   | 'cartesia-ink-whisper'
   | 'deepgram-nova-3'
-  | 'deepgram-nova-3-multilingual';
+  | 'deepgram-nova-3-multilingual'
+  | 'soniox-realtime';
 
 export type LlmModel =
   | 'gpt-5.2'
