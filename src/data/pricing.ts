@@ -27,6 +27,15 @@ export const META: Record<string, PricingMeta> = {
       'Session overhead: 1.15× for OpenAI (cheap caching), 1.3× for Gemini',
     ],
   },
+  soniox: {
+    sourceUrls: ['https://soniox.com/pricing'],
+    lastVerifiedAt: '2026-02-21',
+    assumptions: [
+      'Real-time streaming: input audio $2.00/1M tokens, output text $4.00/1M tokens',
+      '1 hour audio ≈ 60K input tokens + ~15K output tokens → ~$0.12/hr ($0.002/min)',
+      'No minimum commitment or subscription tiers for API usage',
+    ],
+  },
   deepgram: {
     sourceUrls: ['https://deepgram.com/pricing'],
     lastVerifiedAt: '2026-02-18',
@@ -139,6 +148,7 @@ export const LIVEKIT_STT: Record<string, { buildShip: number; scale: number }> =
   'cartesia-ink-whisper':                        { buildShip: 0.0030, scale: 0.0023 },
   'deepgram-nova-3':                             { buildShip: 0.0077, scale: 0.0065 },
   'deepgram-nova-3-multilingual':                { buildShip: 0.0092, scale: 0.0078 },
+  'soniox-realtime':                             { buildShip: 0.0020, scale: 0.0020 },  // BYOP, direct pricing
 };
 
 // ─── LiveKit Inference: TTS (per million characters) ──────
@@ -239,6 +249,7 @@ export const DIRECT_STT: Record<string, number> = {
   'assemblyai-universal-streaming':              0.0025,  // $0.15/hr
   'assemblyai-universal-streaming-multilingual': 0.0025,
   'cartesia-ink-whisper':                        0.0022,  // Scale plan ~$0.13/hr
+  'soniox-realtime':                             0.0020,  // ~$0.12/hr streaming
 };
 
 // TTS: per million characters

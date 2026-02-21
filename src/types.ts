@@ -4,7 +4,7 @@ export type Pipeline = "agent1x-daily" | "livekit-realtime" | "custom";
 export type CallMode = "audio" | "audio-video";
 export type RecordingMode = "none" | "provider";
 
-export type STTProvider = "assemblyai" | "cartesia" | "deepgram" | "elevenlabs";
+export type STTProvider = "assemblyai" | "cartesia" | "deepgram" | "elevenlabs" | "soniox";
 export type LLMProvider =
   | "gpt-4.1-mini"
   | "gpt-4o-mini"

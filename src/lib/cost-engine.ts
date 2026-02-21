@@ -861,6 +861,10 @@ function resolveSourceUrl(detail: CostDetail): string | undefined {
   if (label.includes('Deepgram'))
     return 'https://deepgram.com/pricing';
 
+  // ── Soniox (direct or BYOP) ──
+  if (label.includes('soniox'))
+    return 'https://soniox.com/pricing';
+
   // ── LiveKit Inference (label = raw model ID, formula lacks "(direct)") ──
   // Verified on livekit.io/pricing/inference: all model names are exact matches
   if (!formula.includes('(direct)')) {
@@ -884,6 +888,7 @@ function resolveSourceUrl(detail: CostDetail): string | undefined {
   if (formula.includes('(direct)')) {
     if (label.startsWith('assemblyai')) return 'https://www.assemblyai.com/pricing';
     if (label.startsWith('deepgram')) return 'https://deepgram.com/pricing';
+    if (label.startsWith('soniox')) return 'https://soniox.com/pricing';
     if (label.startsWith('gpt')) return 'https://openai.com/api/pricing/';
     if (label.startsWith('gemini')) return 'https://ai.google.dev/pricing';
   }

@@ -173,6 +173,7 @@ function App() {
                 { label: 'AssemblyAI', href: 'https://www.assemblyai.com/pricing' },
                 { label: 'Cartesia', href: 'https://cartesia.ai/pricing' },
                 { label: 'ElevenLabs', href: 'https://elevenlabs.io/pricing' },
+                { label: 'Soniox', href: 'https://soniox.com/pricing' },
                 { label: 'OpenAI Realtime', href: 'https://developers.openai.com/api/docs/models/gpt-realtime' },
                 { label: 'Gemini Live', href: 'https://ai.google.dev/gemini-api/docs/pricing#gemini-2.5-flash-native-audio' },
                 { label: 'Azure', href: 'https://azure.microsoft.com/en-us/pricing/' },

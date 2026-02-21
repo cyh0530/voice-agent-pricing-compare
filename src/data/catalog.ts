@@ -8,6 +8,7 @@ export const pricingCatalog: PricingCatalog = {
     "https://azure.microsoft.com/pricing",
     "https://platform.openai.com/docs/pricing",
     "https://ai.google.dev/pricing",
+    "https://soniox.com/pricing",
   ],
   lastVerifiedAt: "2026-02-17",
   assumptions: [
@@ -23,6 +24,7 @@ export const pricingCatalog: PricingCatalog = {
       cartesia: 0.0058,
       deepgram: 0.0049,
       elevenlabs: 0.0072,
+      soniox: 0.0020,
     },
     llmPerMinute: {
       "gpt-4.1-mini": 0.013,
