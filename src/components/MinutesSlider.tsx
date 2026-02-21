@@ -58,8 +58,13 @@ export function MinutesSlider({ value, onChange }: MinutesSliderProps) {
     if (clamped !== value) onChange(clamped);
   }, [draft, value, onChange]);
 
+  const formatWithCommas = (n: string) => {
+    const digits = n.replace(/[^0-9]/g, '');
+    return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  };
+
   const startEdit = useCallback(() => {
-    setDraft(String(value));
+    setDraft(value.toLocaleString());
     setEditing(true);
     requestAnimationFrame(() => inputRef.current?.select());
   }, [value]);
@@ -82,20 +87,25 @@ export function MinutesSlider({ value, onChange }: MinutesSliderProps) {
         <label className="text-base font-medium text-muted-foreground">Monthly Minutes</label>
         <div className="flex items-baseline gap-2">
           {editing ? (
-            <input
-              ref={inputRef}
-              type="text"
-              inputMode="numeric"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={commitEdit}
-              onKeyDown={handleKeyDown}
-              className="w-40 bg-transparent text-right font-mono text-3xl font-semibold text-neon tabular-nums outline-none border-b-2 border-neon/50"
-            />
+            <div className="relative inline-grid items-baseline">
+              <span className="invisible col-start-1 row-start-1 whitespace-pre font-mono text-3xl font-semibold tabular-nums px-px">
+                {draft || '\u00A0'}
+              </span>
+              <input
+                ref={inputRef}
+                type="text"
+                inputMode="numeric"
+                value={draft}
+                onChange={(e) => setDraft(formatWithCommas(e.target.value))}
+                onBlur={commitEdit}
+                onKeyDown={handleKeyDown}
+                className="col-start-1 row-start-1 min-w-[2ch] bg-transparent text-right font-mono text-3xl font-semibold text-neon tabular-nums outline-none border-b-2 border-neon/50"
+              />
+            </div>
           ) : (
             <button
               onClick={startEdit}
-              className="font-mono text-3xl font-semibold text-neon tabular-nums cursor-text hover:border-b-2 hover:border-neon/30 transition-colors"
+              className="font-mono text-3xl font-semibold text-neon tabular-nums cursor-text border-b-2 border-dashed border-neon/25 hover:border-neon/50 transition-colors"
             >
               {value.toLocaleString()}
             </button>
