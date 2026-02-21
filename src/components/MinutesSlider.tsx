@@ -129,6 +129,12 @@ export function MinutesSlider({ value, onChange }: MinutesSliderProps) {
           </button>
         ))}
       </div>
+
+      {value >= 100000 && (
+        <p className="text-xs text-violet-400/70 font-mono text-right animate-fade-in">
+          Need more? Enterprise plans offer volume discounts.
+        </p>
+      )}
     </div>
   );
 }

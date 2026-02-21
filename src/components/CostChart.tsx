@@ -14,7 +14,7 @@ import annotationPlugin from 'chartjs-plugin-annotation';
 import type { StackConfig, ChartPoint } from '@/data/types';
 import { generateChartData, calculateCost } from '@/lib/cost-engine';
 import { CHART_COLORS } from '@/data/compatibility';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, ExternalLink } from 'lucide-react';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler, annotationPlugin);
 
@@ -408,6 +408,30 @@ export function CostChart({ stacks, monthlyMinutes, focusedStackId, onFocusStack
                 borderRadius: 4,
               },
             },
+            ...((!isZoomed || zoomMax >= 80000) ? {
+              enterpriseZone: {
+                type: 'box' as const,
+                xMin: 80000,
+                backgroundColor: 'rgba(124, 92, 252, 0.045)',
+                borderWidth: 0,
+                label: {
+                  display: true,
+                  content: ['Enterprise plans', 'may lower costs here'],
+                  position: { x: 'center' as const, y: 'start' as const },
+                  color: '#7C5CFCBB',
+                  font: { family: 'IBM Plex Mono', size: 11 },
+                  padding: { top: 8, bottom: 4, left: 8, right: 8 },
+                },
+              },
+              enterpriseLine: {
+                type: 'line' as const,
+                xMin: 80000,
+                xMax: 80000,
+                borderColor: '#7C5CFC30',
+                borderWidth: 1.5,
+                borderDash: [6, 4],
+              },
+            } : {}),
           },
         },
       },
@@ -465,6 +489,22 @@ export function CostChart({ stacks, monthlyMinutes, focusedStackId, onFocusStack
         <h2 className="font-display text-xl font-semibold tracking-tight">Cost Comparison</h2>
         <span className="text-sm text-muted-foreground font-mono">click line to focus</span>
       </div>
+      {monthlyMinutes >= 100_000 && (
+        <div className="mb-4 rounded-lg border border-violet-500/20 bg-violet-500/5 px-4 py-2.5 flex items-start gap-2.5">
+          <svg className="h-4 w-4 text-violet-400 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>
+          <p className="text-sm text-violet-200/80 leading-relaxed">
+            At <span className="font-medium text-violet-300">100K+ minutes/month</span>, enterprise plans typically offer volume discounts and dedicated support that can significantly lower your cost.{' '}
+            <a href="https://livekit.io/contact-sales" target="_blank" rel="noopener" className="inline-flex items-center gap-1 font-medium text-violet-300 hover:text-violet-200 underline underline-offset-2 decoration-violet-300/30 hover:decoration-violet-200/50 transition-colors">
+              LiveKit Sales<ExternalLink className="h-3 w-3" />
+            </a>
+            {' '}/{' '}
+            <a href="https://www.daily.co/company/contact/sales/" target="_blank" rel="noopener" className="inline-flex items-center gap-1 font-medium text-violet-300 hover:text-violet-200 underline underline-offset-2 decoration-violet-300/30 hover:decoration-violet-200/50 transition-colors">
+              Pipecat Sales<ExternalLink className="h-3 w-3" />
+            </a>
+          </p>
+        </div>
+      )}
+
       <div className="h-[360px] sm:h-[440px]">
         <Line data={chartData} options={options} />
       </div>
