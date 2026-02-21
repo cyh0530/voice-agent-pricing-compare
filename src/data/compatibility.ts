@@ -41,6 +41,7 @@ export const TTS_OPTIONS: SelectOption<TtsModel>[] = [
 export const S2S_OPTIONS: SelectOption<SpeechToSpeechModel>[] = [
   { value: 'openai-realtime', label: 'Realtime API', provider: 'OpenAI' },
   { value: 'gemini-live', label: 'Gemini Live', provider: 'Google' },
+  { value: 'ultravox', label: 'Ultravox', provider: 'Ultravox' },
 ];
 
 export const CHART_COLORS = [

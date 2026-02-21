@@ -27,6 +27,13 @@ export const META: Record<string, PricingMeta> = {
       'Session overhead: 1.15× for OpenAI (cheap caching), 1.3× for Gemini',
     ],
   },
+  ultravox: {
+    sourceUrls: ['https://www.ultravox.ai/pricing'],
+    lastVerifiedAt: '2026-02-21',
+    assumptions: [
+      'Pro plan: $100/mo, 30 free minutes, $0.05/min after, no concurrency cap',
+    ],
+  },
   soniox: {
     sourceUrls: ['https://soniox.com/pricing'],
     lastVerifiedAt: '2026-02-21',
@@ -172,6 +179,7 @@ export const LIVEKIT_LLM: Record<string, { input: number; cachedInput: number; o
 export const LIVEKIT_S2S: Record<string, { perMinute: number }> = {
   'openai-realtime':  { perMinute: 0.045 },
   'gemini-live':      { perMinute: 0.012 },
+  'ultravox':         { perMinute: 0.055 },
 };
 
 // ─── Pipecat Cloud ────────────────────────────────────────
@@ -297,6 +305,17 @@ export const DIRECT_LLM: Record<string, { input: number; output: number }> = {
 export const DIRECT_S2S: Record<string, { perMinute: number }> = {
   'openai-realtime': { perMinute: 0.036 },
   'gemini-live':     { perMinute: 0.0095 },
+  'ultravox':        { perMinute: 0.05 },
+};
+
+// ─── Ultravox S2S Pro Plan ────────────────────────────────
+// Source: https://www.ultravox.ai/pricing (Feb 2026)
+// Pro: $100/mo, 30 free minutes included, $0.05/min after, no concurrency cap.
+
+export const ULTRAVOX_PRO = {
+  monthlyFee: 100,
+  includedMinutes: 30,
+  perMinuteRate: 0.05,
 };
 
 // ─── Azure Self-Hosting ───────────────────────────────────

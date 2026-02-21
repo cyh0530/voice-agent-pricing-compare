@@ -23,7 +23,8 @@ export type TtsModel =
 
 export type SpeechToSpeechModel =
   | 'openai-realtime'
-  | 'gemini-live';
+  | 'gemini-live'
+  | 'ultravox';
 
 export interface StackConfig {
   id: string;

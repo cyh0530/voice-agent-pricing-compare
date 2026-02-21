@@ -24,6 +24,7 @@ import {
   CARTESIA_TIERS,
   ELEVENLABS_TURBO_TIERS,
   DEEPGRAM_STT_PLANS,
+  ULTRAVOX_PRO,
 } from '@/data/pricing';
 
 // ─── Main Entry Point ─────────────────────────────────────
@@ -85,11 +86,15 @@ export function calculateCost(stack: StackConfig, monthlyMinutes: number): CostB
     details.push({ category: 'Transport', label: 'Daily WebRTC Voice (1:1 free)', formula: 'Free on Pipecat Cloud', amount: 0 });
 
     if (isSpeechToSpeech) {
-      const s2sRate = DIRECT_S2S[stack.speechToSpeechModel];
-      if (s2sRate) {
-        const s2sCost = monthlyMinutes * s2sRate.perMinute;
-        llm = s2sCost;
-        details.push({ category: 'S2S Model', label: stack.speechToSpeechModel, formula: `${monthlyMinutes} min × $${s2sRate.perMinute}/min`, amount: s2sCost });
+      if (stack.speechToSpeechModel === 'ultravox') {
+        llm = calcUltravoxS2s(monthlyMinutes, details, bestPlans);
+      } else {
+        const s2sRate = DIRECT_S2S[stack.speechToSpeechModel];
+        if (s2sRate) {
+          const s2sCost = monthlyMinutes * s2sRate.perMinute;
+          llm = s2sCost;
+          details.push({ category: 'S2S Model', label: stack.speechToSpeechModel, formula: `${monthlyMinutes} min × $${s2sRate.perMinute}/min`, amount: s2sCost });
+        }
       }
     } else {
       const inf = calcDirectInference(stack, monthlyMinutes, details, bestPlans);
@@ -110,11 +115,15 @@ export function calculateCost(stack: StackConfig, monthlyMinutes: number): CostB
     }
 
     if (isSpeechToSpeech) {
-      const s2sRate = DIRECT_S2S[stack.speechToSpeechModel];
-      if (s2sRate) {
-        const s2sCost = monthlyMinutes * s2sRate.perMinute;
-        llm = s2sCost;
-        details.push({ category: 'S2S Model', label: stack.speechToSpeechModel, formula: `${monthlyMinutes} min × $${s2sRate.perMinute}/min`, amount: s2sCost });
+      if (stack.speechToSpeechModel === 'ultravox') {
+        llm = calcUltravoxS2s(monthlyMinutes, details, bestPlans);
+      } else {
+        const s2sRate = DIRECT_S2S[stack.speechToSpeechModel];
+        if (s2sRate) {
+          const s2sCost = monthlyMinutes * s2sRate.perMinute;
+          llm = s2sCost;
+          details.push({ category: 'S2S Model', label: stack.speechToSpeechModel, formula: `${monthlyMinutes} min × $${s2sRate.perMinute}/min`, amount: s2sCost });
+        }
       }
     } else {
       const inf = calcDirectInference(stack, monthlyMinutes, details, bestPlans);
@@ -682,6 +691,29 @@ function calcDeepgramStt(model: string, minutes: number, details: CostDetail[], 
   return bestCost;
 }
 
+// ─── Ultravox S2S (Pro Plan) ──────────────────────────────
+// Pro: $100/mo base + $0.05/min after 30 free included minutes.
+
+function calcUltravoxS2s(minutes: number, details: CostDetail[], bestPlans: Record<string, string>): number {
+  const billableMinutes = Math.max(0, minutes - ULTRAVOX_PRO.includedMinutes);
+  const cost = ULTRAVOX_PRO.monthlyFee + billableMinutes * ULTRAVOX_PRO.perMinuteRate;
+
+  bestPlans['S2S'] = 'Ultravox Pro';
+
+  const formula = minutes <= ULTRAVOX_PRO.includedMinutes
+    ? `$${ULTRAVOX_PRO.monthlyFee}/mo + ${minutes} min within ${ULTRAVOX_PRO.includedMinutes} free (Ultravox Pro)`
+    : `$${ULTRAVOX_PRO.monthlyFee}/mo + (${minutes.toLocaleString()} − ${ULTRAVOX_PRO.includedMinutes} free) × $${ULTRAVOX_PRO.perMinuteRate}/min (Ultravox Pro)`;
+
+  details.push({
+    category: 'S2S Model',
+    label: 'Ultravox (Pro)',
+    formula,
+    amount: cost,
+  });
+
+  return cost;
+}
+
 // ─── Daily WebRTC Transport (tiered) ──────────────────────
 
 function calcDailyTransport(minutes: number, callMode: string, details: CostDetail[]): number {
@@ -851,6 +883,7 @@ function resolveSourceUrl(detail: CostDetail): string | undefined {
   if (category === 'S2S Model') {
     if (label.includes('openai-realtime')) return 'https://openai.com/api/pricing/';
     if (label.includes('gemini-live')) return 'https://ai.google.dev/pricing';
+    if (label.includes('Ultravox')) return 'https://www.ultravox.ai/pricing';
   }
 
   // ── Tier-Optimized Providers (label includes proper-cased name + tier/plan) ──
