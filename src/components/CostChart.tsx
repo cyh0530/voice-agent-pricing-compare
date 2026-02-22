@@ -158,7 +158,7 @@ function Navigator({ chartData, rangeLeft, rangeRight, onChange, onReset, isZoom
   return (
     <div className="mt-6 space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-mono text-muted-foreground/70 uppercase tracking-wider">Navigator</span>
+        <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Navigator</span>
         <div className="flex items-center gap-3">
           <span className="text-xs font-mono text-muted-foreground">
             {zoomMinLabel} – {zoomMaxLabel} min
@@ -242,7 +242,7 @@ function Navigator({ chartData, rangeLeft, rangeRight, onChange, onReset, isZoom
       </div>
 
       {/* Axis labels */}
-      <div className="flex justify-between text-[10px] font-mono text-muted-foreground/50 px-0.5">
+      <div className="flex justify-between text-[10px] font-mono text-muted-foreground px-0.5">
         <span>0</span>
         <span>20K</span>
         <span>40K</span>

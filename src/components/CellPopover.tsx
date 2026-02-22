@@ -48,7 +48,7 @@ export function CellPopover({ children, details, category }: CellPopoverProps) {
                   ${detail.amount.toFixed(2)}
                 </span>
               </div>
-              <p className="text-xs font-mono text-muted-foreground/70 leading-relaxed break-all">
+              <p className="text-xs font-mono text-muted-foreground leading-relaxed break-all">
                 {detail.formula}
               </p>
               {detail.sourceUrl && (
