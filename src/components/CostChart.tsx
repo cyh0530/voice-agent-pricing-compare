@@ -358,7 +358,7 @@ export function CostChart({ stacks, monthlyMinutes, focusedStackId, onFocusStack
           position: 'top' as const,
           align: 'end' as const,
           labels: {
-            color: '#8891A5',
+            color: '#9BA3B0',
             font: { family: 'IBM Plex Mono', size: 13 },
             boxWidth: 14,
             boxHeight: 3,
@@ -417,7 +417,7 @@ export function CostChart({ stacks, monthlyMinutes, focusedStackId, onFocusStack
                 label: {
                   display: true,
                   content: ['Enterprise plans', 'may lower costs here'],
-                  position: { x: 'center' as const, y: 'start' as const },
+                  position: { x: 'center' as const, y: 'end' as const },
                   color: '#7C5CFCBB',
                   font: { family: 'IBM Plex Mono', size: 11 },
                   padding: { top: 8, bottom: 4, left: 8, right: 8 },
@@ -443,11 +443,11 @@ export function CostChart({ stacks, monthlyMinutes, focusedStackId, onFocusStack
           title: {
             display: true,
             text: 'Monthly Minutes',
-            color: '#565E73',
+            color: '#9BA3B0',
             font: { family: 'Outfit', size: 14 },
           },
           ticks: {
-            color: '#565E73',
+            color: '#9BA3B0',
             font: { family: 'IBM Plex Mono', size: 12 },
             callback: (value: string | number) => {
               const v = Number(value);
@@ -464,11 +464,11 @@ export function CostChart({ stacks, monthlyMinutes, focusedStackId, onFocusStack
           title: {
             display: true,
             text: 'Monthly Cost (USD)',
-            color: '#565E73',
+            color: '#9BA3B0',
             font: { family: 'Outfit', size: 14 },
           },
           ticks: {
-            color: '#565E73',
+            color: '#9BA3B0',
             font: { family: 'IBM Plex Mono', size: 12 },
             callback: (value: string | number) => `$${Number(value).toLocaleString()}`,
           },
