@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { TooltipProvider } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Header } from '@/components/Header';
 import { MinutesSlider } from '@/components/MinutesSlider';
 import { CostChart } from '@/components/CostChart';
@@ -10,7 +10,7 @@ import { DEFAULT_STACKS, DEFAULT_MONTHLY_MINUTES, createNewStack } from '@/data/
 import { calculateCost } from '@/lib/cost-engine';
 import { decodeState, pushState } from '@/lib/url-state';
 import { CHART_COLORS } from '@/data/compatibility';
-import { ExternalLink, RotateCcw, Trophy } from 'lucide-react';
+import { ExternalLink, Layers, RotateCcw, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { StackConfig } from '@/data/types';
 
@@ -122,6 +122,19 @@ function App() {
                   <div className="text-xs font-mono text-muted-foreground mt-0.5">
                     ${card.perMinute.toFixed(4)}/min
                   </div>
+                  {monthlyMinutes >= 80_000 && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="mt-1.5 flex items-center gap-1 text-[11px] text-violet-400/80 font-mono cursor-help">
+                          <Layers className="h-3 w-3 shrink-0" />
+                          <span>Enterprise may be lower</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-[220px] text-center">
+                        At 80K+ min/month, enterprise plans often include volume discounts that lower this cost.
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
                 </button>
               ))}
             </div>
