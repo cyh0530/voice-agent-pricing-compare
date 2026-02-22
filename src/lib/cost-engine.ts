@@ -764,24 +764,45 @@ function calcAzureHosting(minutes: number, details: CostDetail[]): { cost: numbe
 function calcRecording(stack: StackConfig, minutes: number, details: CostDetail[]): number {
   if (stack.recordingMode === 'none') return 0;
 
-  // Daily recording processing + Azure Blob Storage for recordings
-  const processingRate = stack.recordingMode === 'audio-only'
-    ? PIPECAT_RECORDING.audioOnly
-    : PIPECAT_RECORDING.audioVideo;
-  const processingCost = minutes * processingRate;
-
   const mbPerMin = stack.recordingMode === 'audio-only'
     ? AZURE_BLOB_STORAGE.audioMBPerMinute
     : AZURE_BLOB_STORAGE.videoMBPerMinute;
   const totalGB = (minutes * mbPerMin) / 1024;
   const storageCost = totalGB * AZURE_BLOB_STORAGE.perGBMonth;
 
-  details.push({
-    category: 'Recording',
-    label: `Daily recording (${stack.recordingMode})`,
-    formula: `${minutes} min × $${processingRate}/min`,
-    amount: processingCost,
-  });
+  if (stack.platform === 'livekit' && stack.hosting === 'self-hosted') {
+    // LiveKit Egress is open-source; compute is included in Azure AKS hosting.
+    // Only storage cost applies.
+    details.push({
+      category: 'Recording',
+      label: `LiveKit Egress (${stack.recordingMode})`,
+      formula: 'Open-source — compute included in Azure hosting',
+      amount: 0,
+    });
+  } else {
+    // Pipecat stacks use Daily recording processing
+    const processingRate = stack.recordingMode === 'audio-only'
+      ? PIPECAT_RECORDING.audioOnly
+      : PIPECAT_RECORDING.audioVideo;
+    const processingCost = minutes * processingRate;
+
+    details.push({
+      category: 'Recording',
+      label: `Daily recording (${stack.recordingMode})`,
+      formula: `${minutes.toLocaleString()} min × $${processingRate}/min`,
+      amount: processingCost,
+    });
+
+    details.push({
+      category: 'Recording',
+      label: 'Azure Blob Storage (Hot LRS)',
+      formula: `${totalGB.toFixed(2)} GB × $${AZURE_BLOB_STORAGE.perGBMonth}/GB/mo`,
+      amount: storageCost,
+    });
+
+    return processingCost + storageCost;
+  }
+
   details.push({
     category: 'Recording',
     label: 'Azure Blob Storage (Hot LRS)',
@@ -789,7 +810,7 @@ function calcRecording(stack: StackConfig, minutes: number, details: CostDetail[
     amount: storageCost,
   });
 
-  return processingCost + storageCost;
+  return storageCost;
 }
 
 // ─── Noise Cancellation (Krisp) ───────────────────────────
@@ -862,6 +883,8 @@ function resolveSourceUrl(detail: CostDetail): string | undefined {
     return 'https://www.daily.co/pricing/webrtc-infrastructure/';
   if (label.startsWith('Daily recording'))
     return `https://www.daily.co/pricing/pipecat-cloud/#:~:text=${frag('Recording')}`;
+  if (label.startsWith('LiveKit Egress'))
+    return 'https://docs.livekit.io/home/egress/overview/';
 
   // ── Azure ──
   if (label === 'Azure AKS')
@@ -882,7 +905,7 @@ function resolveSourceUrl(detail: CostDetail): string | undefined {
   // ── S2S Models ──
   if (category === 'S2S Model') {
     if (label.includes('openai-realtime')) return 'https://openai.com/api/pricing/';
-    if (label.includes('gemini-live')) return 'https://ai.google.dev/pricing';
+    if (label.includes('gemini-live')) return 'https://ai.google.dev/gemini-api/docs/pricing#gemini-2.5-flash-native-audio';
     if (label.includes('Ultravox')) return 'https://www.ultravox.ai/pricing';
   }
 

@@ -274,7 +274,7 @@ export function StackColumn({ stack, index, cost, isFocused, onUpdate, onRemove,
           </span>
         </div>
         {Object.keys(cost.bestPlans).length > 0 && (
-          <div className="flex flex-wrap gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground justify-end">
+          <div className="flex flex-col items-end gap-0.5 text-xs text-muted-foreground">
             {Object.entries(cost.bestPlans).map(([category, plan]) => (
               <span key={category}>
                 {category}: <span className="text-foreground font-medium">{plan}</span>
