@@ -417,7 +417,7 @@ export function CostChart({ stacks, monthlyMinutes, focusedStackId, onFocusStack
                 label: {
                   display: true,
                   content: ['Enterprise plans', 'may lower costs here'],
-                  position: { x: 'center' as const, y: 'start' as const },
+                  position: { x: 'center' as const, y: 'end' as const },
                   color: '#7C5CFCBB',
                   font: { family: 'IBM Plex Mono', size: 11 },
                   padding: { top: 8, bottom: 4, left: 8, right: 8 },
