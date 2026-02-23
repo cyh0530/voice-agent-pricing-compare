@@ -27,6 +27,7 @@ import {
   DEEPGRAM_STT_PLANS,
   ULTRAVOX_PRO,
 } from '@/data/pricing';
+import { STT_OPTIONS, TTS_OPTIONS } from '@/data/compatibility';
 
 // ─── Main Entry Point ─────────────────────────────────────
 
@@ -347,8 +348,10 @@ function calcLiveKitCloudOptimal(
 
   const bestPlans: Record<string, string> = { Platform: bestPlanName };
   if (!isSpeechToSpeech) {
-    bestPlans['STT'] = bestPlanName;
-    bestPlans['TTS'] = bestPlanName;
+    const sttProvider = STT_OPTIONS.find(o => o.value === stack.sttModel)?.provider;
+    const ttsProvider = TTS_OPTIONS.find(o => o.value === stack.ttsModel)?.provider;
+    bestPlans['STT'] = sttProvider ? `${sttProvider} ${bestPlanName}` : bestPlanName;
+    bestPlans['TTS'] = ttsProvider ? `${ttsProvider} ${bestPlanName}` : bestPlanName;
   }
   return { platform: totalPlatform, transport: webRtcCost + dataTransferCost, recording: recordingCost, stt, llm, tts, bestPlans };
 }
