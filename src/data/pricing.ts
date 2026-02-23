@@ -69,11 +69,13 @@ export const META: Record<string, PricingMeta> = {
     ],
   },
   azure: {
-    sourceUrls: ['https://azure.microsoft.com/en-us/pricing/'],
-    lastVerifiedAt: '2026-02-17',
+    sourceUrls: ['https://azure.microsoft.com/en-us/pricing/', 'https://docs.livekit.io/transport/self-hosting/egress/'],
+    lastVerifiedAt: '2026-02-23',
     assumptions: [
       'AKS Standard: $73/mo control plane + D2s_v3 nodes at ~$70/mo each',
       'One pod per bot for process isolation (~6 concurrent bots per D2s_v3 node)',
+      'LiveKit Egress: D4s_v3 nodes ($140/mo each), 1 RoomComposite job per node, ~50 TrackEgress jobs per node',
+      'Egress 30% availability headroom per LiveKit recommendation',
       'Average session: 10 minutes',
     ],
   },
@@ -316,6 +318,20 @@ export const ULTRAVOX_PRO = {
   monthlyFee: 100,
   includedMinutes: 30,
   perMinuteRate: 0.05,
+};
+
+// ─── LiveKit Egress Self-Hosted Infra ─────────────────────
+// Source: https://docs.livekit.io/transport/self-hosting/egress/
+// Each Egress worker needs ≥4 CPUs + 4 GB RAM.
+// RoomComposite: 1 job per worker (2-6 CPUs, Chrome headless).
+// TrackEgress: lightweight, ~50 concurrent jobs per worker (no transcoding).
+// LiveKit recommends keeping ≥30% of instances available for incoming requests.
+
+export const LIVEKIT_EGRESS = {
+  nodeMonthly: 140,              // D4s_v3 (4 vCPU, 16 GB) on Azure
+  compositeJobsPerNode: 1,       // RoomComposite egress: 1 per worker
+  trackJobsPerNode: 50,          // TrackEgress: lightweight, many per worker
+  availabilityHeadroom: 1.3,     // 30% headroom per LiveKit docs
 };
 
 // ─── Azure Self-Hosting ───────────────────────────────────

@@ -13,6 +13,7 @@ import {
   DAILY_KRISP_ADDON,
   PIPECAT_RECORDING,
   AZURE_BLOB_STORAGE,
+  LIVEKIT_EGRESS,
   DAILY_TIERS,
   DIRECT_STT,
   DIRECT_TTS,
@@ -771,14 +772,36 @@ function calcRecording(stack: StackConfig, minutes: number, details: CostDetail[
   const storageCost = totalGB * AZURE_BLOB_STORAGE.perGBMonth;
 
   if (stack.platform === 'livekit' && stack.hosting === 'self-hosted') {
-    // LiveKit Egress is open-source; compute is included in Azure AKS hosting.
-    // Only storage cost applies.
+    // LiveKit Egress is open-source but requires dedicated compute.
+    // Each worker needs ≥4 vCPUs + 4 GB RAM (D4s_v3 on Azure).
+    // RoomComposite: 1 job/worker; TrackEgress: ~50 jobs/worker.
+    // Source: https://docs.livekit.io/transport/self-hosting/egress/
+    const avgConcurrent = Math.max(1, minutes / MINUTES_PER_MONTH);
+    const peakConcurrent = Math.max(1, Math.ceil(avgConcurrent * ASSUMPTIONS.peakToAvgRatio));
+    const jobsPerNode = stack.recordingMode === 'audio-only'
+      ? LIVEKIT_EGRESS.trackJobsPerNode
+      : LIVEKIT_EGRESS.compositeJobsPerNode;
+    const egressNodes = Math.max(1, Math.ceil(
+      (peakConcurrent * LIVEKIT_EGRESS.availabilityHeadroom) / jobsPerNode
+    ));
+    const egressCost = egressNodes * LIVEKIT_EGRESS.nodeMonthly;
+
+    const modeLabel = stack.recordingMode === 'audio-only' ? 'TrackEgress' : 'RoomComposite';
     details.push({
       category: 'Recording',
-      label: `LiveKit Egress (${stack.recordingMode})`,
-      formula: 'Open-source — compute included in Azure hosting',
-      amount: 0,
+      label: `LiveKit Egress compute (${modeLabel})`,
+      formula: `${egressNodes} D4s_v3 node${egressNodes !== 1 ? 's' : ''} × $${LIVEKIT_EGRESS.nodeMonthly}/mo (${jobsPerNode} job${jobsPerNode !== 1 ? 's' : ''}/node, 30% headroom)`,
+      amount: egressCost,
     });
+
+    details.push({
+      category: 'Recording',
+      label: 'Azure Blob Storage (Hot LRS)',
+      formula: `${totalGB.toFixed(2)} GB × $${AZURE_BLOB_STORAGE.perGBMonth}/GB/mo`,
+      amount: storageCost,
+    });
+
+    return egressCost + storageCost;
   } else {
     // Pipecat stacks use Daily recording processing
     const processingRate = stack.recordingMode === 'audio-only'
@@ -802,15 +825,6 @@ function calcRecording(stack: StackConfig, minutes: number, details: CostDetail[
 
     return processingCost + storageCost;
   }
-
-  details.push({
-    category: 'Recording',
-    label: 'Azure Blob Storage (Hot LRS)',
-    formula: `${totalGB.toFixed(2)} GB × $${AZURE_BLOB_STORAGE.perGBMonth}/GB/mo`,
-    amount: storageCost,
-  });
-
-  return storageCost;
 }
 
 // ─── Noise Cancellation (Krisp) ───────────────────────────
@@ -884,7 +898,7 @@ function resolveSourceUrl(detail: CostDetail): string | undefined {
   if (label.startsWith('Daily recording'))
     return `https://www.daily.co/pricing/pipecat-cloud/#:~:text=${frag('Recording')}`;
   if (label.startsWith('LiveKit Egress'))
-    return 'https://docs.livekit.io/home/egress/overview/';
+    return 'https://docs.livekit.io/transport/self-hosting/egress/';
 
   // ── Azure ──
   if (label === 'Azure AKS')
