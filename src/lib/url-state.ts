@@ -59,6 +59,7 @@ export function decodeState(search: string): { stacks: StackConfig[]; monthlyMin
 }
 
 export function pushState(stacks: StackConfig[], monthlyMinutes: number) {
+  if (typeof window === 'undefined') return;
   const encoded = encodeState(stacks, monthlyMinutes);
   const url = `${window.location.pathname}?${encoded}`;
   window.history.replaceState(null, '', url);

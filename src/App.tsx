@@ -17,12 +17,14 @@ import type { StackConfig } from '@/data/types';
 function App() {
   // Initialize from URL or defaults
   const [stacks, setStacks] = useState<StackConfig[]>(() => {
-    const decoded = decodeState(window.location.search);
+    const search = typeof window !== 'undefined' ? window.location.search : '';
+    const decoded = decodeState(search);
     return decoded?.stacks ?? DEFAULT_STACKS;
   });
 
   const [monthlyMinutes, setMonthlyMinutes] = useState(() => {
-    const decoded = decodeState(window.location.search);
+    const search = typeof window !== 'undefined' ? window.location.search : '';
+    const decoded = decodeState(search);
     return decoded?.monthlyMinutes ?? DEFAULT_MONTHLY_MINUTES;
   });
 
