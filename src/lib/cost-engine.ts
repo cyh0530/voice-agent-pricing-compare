@@ -950,7 +950,7 @@ function resolveSourceUrl(detail: CostDetail): string | undefined {
   // ── S2S Models ──
   if (category === 'S2S Model') {
     if (label.includes('openai-realtime')) return 'https://openai.com/api/pricing/';
-    if (label.includes('gemini-live')) return 'https://ai.google.dev/gemini-api/docs/pricing#gemini-2.5-flash-native-audio';
+    if (label.includes('gemini-live')) return 'https://ai.google.dev/gemini-api/docs/pricing#gemini-3.1-flash-live-preview';
     if (label.includes('Ultravox')) return 'https://www.ultravox.ai/pricing';
   }
 

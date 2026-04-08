@@ -17,12 +17,12 @@ export const META: Record<string, PricingMeta> = {
   s2s: {
     sourceUrls: [
       'https://developers.openai.com/api/docs/models/gpt-realtime',
-      'https://ai.google.dev/gemini-api/docs/pricing#gemini-2.5-flash-native-audio',
+      'https://ai.google.dev/gemini-api/docs/pricing#gemini-3.1-flash-live-preview',
     ],
-    lastVerifiedAt: '2026-02-17',
+    lastVerifiedAt: '2026-04-08',
     assumptions: [
       'OpenAI gpt-realtime (GA): audio input 10 tok/sec @ $32/1M, output 20 tok/sec @ $64/1M, cached $0.40/1M',
-      'Gemini 2.5 Flash Native Audio (Live API): audio ~25 tok/sec (est.), input $3/1M, output $12/1M',
+      'Gemini 3.1 Flash Live Preview: audio input $3/1M ($0.005/min), output $12/1M ($0.018/min); ~28 tok/sec input, 25 tok/sec output (derived from per-min rates)',
       'Turn-based context accumulation: each turn re-processes all prior audio (triangular token growth)',
       'Turn structure: user speaks ~45s, agent responds ~12s, ~10% silence → ~9 turns per 10-min session',
       'OpenAI cached audio context at $0.40/1M (80× cheaper); Gemini has no documented cache discount',
@@ -216,8 +216,8 @@ export const S2S_TOKEN_PARAMS: Record<string, S2sTokenParams> = {
     outputPricePerMillion: 64.00,
   },
   'gemini-live': {
-    inputTokensPerSec: 25,             // ~25 tok/sec (community-measured estimate)
-    outputTokensPerSec: 25,            // same rate for output audio
+    inputTokensPerSec: 28,             // ~27.78 tok/sec (derived from official $0.005/min @ $3/1M)
+    outputTokensPerSec: 25,            // 25 tok/sec (derived from official $0.018/min @ $12/1M)
     inputPricePerMillion: 3.00,
     cachedInputPricePerMillion: null,   // no documented cache discount for Live API
     outputPricePerMillion: 12.00,
@@ -339,7 +339,7 @@ export const DIRECT_LLM: Record<string, { input: number; cachedInput: number; ou
 //
 // Sources:
 //   OpenAI: https://developers.openai.com/api/docs/models/gpt-realtime
-//   Gemini: https://ai.google.dev/gemini-api/docs/pricing#gemini-2.5-flash-native-audio
+//   Gemini: https://ai.google.dev/gemini-api/docs/pricing#gemini-3.1-flash-live-preview
 
 /**
  * Compute S2S cost for one session with turn-based context accumulation.
