@@ -18,9 +18,10 @@ import {
   DIRECT_STT,
   DIRECT_TTS,
   DIRECT_LLM,
-  DIRECT_S2S,
   AZURE_AKS,
   ASSUMPTIONS,
+  calcS2sPerMinute,
+  calcLiveKitS2sPerMinute,
   type ProviderTier,
   CARTESIA_TIERS,
   ELEVENLABS_TURBO_TIERS,
@@ -91,11 +92,11 @@ export function calculateCost(stack: StackConfig, monthlyMinutes: number): CostB
       if (stack.speechToSpeechModel === 'ultravox') {
         llm = calcUltravoxS2s(monthlyMinutes, details, bestPlans);
       } else {
-        const s2sRate = DIRECT_S2S[stack.speechToSpeechModel];
-        if (s2sRate) {
-          const s2sCost = monthlyMinutes * s2sRate.perMinute;
+        const perMin = calcS2sPerMinute(stack.speechToSpeechModel);
+        if (perMin > 0) {
+          const s2sCost = monthlyMinutes * perMin;
           llm = s2sCost;
-          details.push({ category: 'S2S Model', label: stack.speechToSpeechModel, formula: `${monthlyMinutes} min × $${s2sRate.perMinute}/min`, amount: s2sCost });
+          details.push({ category: 'S2S Model', label: stack.speechToSpeechModel, formula: `${monthlyMinutes} min × $${perMin.toFixed(4)}/min (turn-accumulated)`, amount: s2sCost });
         }
       }
     } else {
@@ -120,11 +121,11 @@ export function calculateCost(stack: StackConfig, monthlyMinutes: number): CostB
       if (stack.speechToSpeechModel === 'ultravox') {
         llm = calcUltravoxS2s(monthlyMinutes, details, bestPlans);
       } else {
-        const s2sRate = DIRECT_S2S[stack.speechToSpeechModel];
-        if (s2sRate) {
-          const s2sCost = monthlyMinutes * s2sRate.perMinute;
+        const perMin = calcS2sPerMinute(stack.speechToSpeechModel);
+        if (perMin > 0) {
+          const s2sCost = monthlyMinutes * perMin;
           llm = s2sCost;
-          details.push({ category: 'S2S Model', label: stack.speechToSpeechModel, formula: `${monthlyMinutes} min × $${s2sRate.perMinute}/min`, amount: s2sCost });
+          details.push({ category: 'S2S Model', label: stack.speechToSpeechModel, formula: `${monthlyMinutes} min × $${perMin.toFixed(4)}/min (turn-accumulated)`, amount: s2sCost });
         }
       }
     } else {
@@ -195,8 +196,13 @@ function calcPlanFullCost(
   // Inference
   let inferenceCost = 0;
   if (isSpeechToSpeech) {
-    const s2sRate = LIVEKIT_S2S[stack.speechToSpeechModel];
-    if (s2sRate) inferenceCost = minutes * s2sRate.perMinute;
+    if (stack.speechToSpeechModel === 'ultravox') {
+      const s2sRate = LIVEKIT_S2S[stack.speechToSpeechModel];
+      if (s2sRate) inferenceCost = minutes * s2sRate.perMinute;
+    } else {
+      const perMin = calcLiveKitS2sPerMinute(stack.speechToSpeechModel);
+      if (perMin > 0) inferenceCost = minutes * perMin;
+    }
   } else {
     const isScale = plan.name === 'Scale';
     inferenceCost += calcLiveKitSttCost(stack.sttModel, minutes, isScale);
@@ -315,11 +321,20 @@ function calcLiveKitCloudOptimal(
   let tts = 0;
 
   if (isSpeechToSpeech) {
-    const s2sRate = LIVEKIT_S2S[stack.speechToSpeechModel];
-    if (s2sRate) {
-      const s2sCost = minutes * s2sRate.perMinute;
-      llm = s2sCost;
-      details.push({ category: 'S2S Model', label: stack.speechToSpeechModel, formula: `${minutes} min × $${s2sRate.perMinute}/min`, amount: s2sCost });
+    if (stack.speechToSpeechModel === 'ultravox') {
+      const s2sRate = LIVEKIT_S2S[stack.speechToSpeechModel];
+      if (s2sRate) {
+        const s2sCost = minutes * s2sRate.perMinute;
+        llm = s2sCost;
+        details.push({ category: 'S2S Model', label: stack.speechToSpeechModel, formula: `${minutes} min × $${s2sRate.perMinute}/min`, amount: s2sCost });
+      }
+    } else {
+      const perMin = calcLiveKitS2sPerMinute(stack.speechToSpeechModel);
+      if (perMin > 0) {
+        const s2sCost = minutes * perMin;
+        llm = s2sCost;
+        details.push({ category: 'S2S Model', label: stack.speechToSpeechModel, formula: `${minutes} min × $${perMin.toFixed(4)}/min (turn-accumulated, +10% LK margin)`, amount: s2sCost });
+      }
     }
   } else {
     stt = calcLiveKitStt(stack.sttModel, minutes, isScale, details);
