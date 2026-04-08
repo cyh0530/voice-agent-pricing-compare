@@ -102,19 +102,19 @@ export function FAQ() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground mt-1.5 shrink-0" />
-                  <span><strong className="text-foreground/90">LLM input tokens:</strong> ~800/min (conversation context grows over session)</span>
+                  <span><strong className="text-foreground/90">LLM turn model:</strong> conversation turns derived from session length (same cadence as S2S voice turns)</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground mt-1.5 shrink-0" />
-                  <span><strong className="text-foreground/90">LLM output tokens:</strong> ~400/min (agent response tokens)</span>
+                  <span><strong className="text-foreground/90">LLM tokens/turn:</strong> ~80 input (user message) + ~200 output (agent response) + 500 system prompt (cached)</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground mt-1.5 shrink-0" />
-                  <span><strong className="text-foreground/90">Cache hit rate:</strong> 30% of input tokens served from cache</span>
+                  <span><strong className="text-foreground/90">Context accumulation:</strong> prior turns re-sent as cached input (triangular growth, like S2S)</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground mt-1.5 shrink-0" />
-                  <span><strong className="text-foreground/90">Average session:</strong> 10 minutes (for Azure compute sizing)</span>
+                  <span><strong className="text-foreground/90">Average session:</strong> configurable via slider (default 15 min)</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground mt-1.5 shrink-0" />

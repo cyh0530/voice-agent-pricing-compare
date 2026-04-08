@@ -8,6 +8,7 @@ import { calculateCost } from '@/lib/cost-engine';
 interface ComparisonTableProps {
   stacks: StackConfig[];
   monthlyMinutes: number;
+  sessionMinutes: number;
   focusedStackId: string | null;
   onUpdateStack: (id: string, updates: Partial<StackConfig>) => void;
   onRemoveStack: (id: string) => void;
@@ -18,6 +19,7 @@ interface ComparisonTableProps {
 export function ComparisonTable({
   stacks,
   monthlyMinutes,
+  sessionMinutes,
   focusedStackId,
   onUpdateStack,
   onRemoveStack,
@@ -27,10 +29,10 @@ export function ComparisonTable({
   const costs: Record<string, CostBreakdown> = useMemo(() => {
     const map: Record<string, CostBreakdown> = {};
     for (const stack of stacks) {
-      map[stack.id] = calculateCost(stack, monthlyMinutes);
+      map[stack.id] = calculateCost(stack, monthlyMinutes, sessionMinutes);
     }
     return map;
-  }, [stacks, monthlyMinutes]);
+  }, [stacks, monthlyMinutes, sessionMinutes]);
 
   return (
     <div className="space-y-5">

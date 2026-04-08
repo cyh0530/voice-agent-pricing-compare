@@ -1,9 +1,10 @@
 import type { StackConfig } from '@/data/types';
 
 // Encode stacks + minutes into URL search params
-export function encodeState(stacks: StackConfig[], monthlyMinutes: number): string {
+export function encodeState(stacks: StackConfig[], monthlyMinutes: number, sessionMinutes: number): string {
   const params = new URLSearchParams();
   params.set('min', String(monthlyMinutes));
+  params.set('ses', String(sessionMinutes));
 
   stacks.forEach((s, i) => {
     const prefix = `s${i}`;
@@ -25,11 +26,13 @@ export function encodeState(stacks: StackConfig[], monthlyMinutes: number): stri
 }
 
 // Decode URL search params into stacks + minutes
-export function decodeState(search: string): { stacks: StackConfig[]; monthlyMinutes: number } | null {
+export function decodeState(search: string): { stacks: StackConfig[]; monthlyMinutes: number; sessionMinutes: number | null } | null {
   try {
     const params = new URLSearchParams(search);
     const n = parseInt(params.get('n') || '0', 10);
     const monthlyMinutes = parseInt(params.get('min') || '0', 10);
+    const sesRaw = params.get('ses');
+    const sessionMinutes = sesRaw ? parseInt(sesRaw, 10) : null;
 
     if (n === 0 || monthlyMinutes === 0) return null;
 
@@ -52,14 +55,14 @@ export function decodeState(search: string): { stacks: StackConfig[]; monthlyMin
       });
     }
 
-    return { stacks, monthlyMinutes };
+    return { stacks, monthlyMinutes, sessionMinutes };
   } catch {
     return null;
   }
 }
 
-export function pushState(stacks: StackConfig[], monthlyMinutes: number) {
-  const encoded = encodeState(stacks, monthlyMinutes);
+export function pushState(stacks: StackConfig[], monthlyMinutes: number, sessionMinutes: number) {
+  const encoded = encodeState(stacks, monthlyMinutes, sessionMinutes);
   const url = `${window.location.pathname}?${encoded}`;
   window.history.replaceState(null, '', url);
 }

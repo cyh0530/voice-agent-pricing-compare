@@ -183,11 +183,11 @@ export const ASSUMPTIONS = {
   sttDutyRatio: 0.66,             // user speaks ~66% of session time
   ttsDutyRatio: 0.24,             // agent speaks ~24% of session time (~10% is silence)
   avgCharsPerMinuteTTS: 900,      // ~150 words/min * ~6 chars/word (during active TTS)
-  avgInputTokensPerMinute: 800,   // conversation context growing
-  avgOutputTokensPerMinute: 400,  // agent response tokens
-  cacheHitRate: 0.3,              // 30% of input tokens are cached
+  llmSystemPromptTokens: 500,     // system prompt + tool definitions (cached after turn 1)
+  llmNewInputTokensPerTurn: 80,   // user voice utterance as text tokens per turn
+  llmOutputTokensPerTurn: 200,    // agent response text tokens per turn
   avgDownstreamMBPerMinute: 0.24, // Opus voice ~32kbps downstream to participant
-  avgSessionMinutes: 10,          // typical voice agent session length
+  avgSessionMinutes: 15,          // typical voice agent session length
   peakToAvgRatio: 2,              // peak concurrent ≈ 2× average (standard traffic assumption)
   s2sUserTurnSec: 45,             // user speaks ~45 sec per turn
   s2sAgentTurnSec: 12,            // agent responds ~12 sec per turn
@@ -225,12 +225,10 @@ export const S2S_TOKEN_PARAMS: Record<string, S2sTokenParams> = {
 };
 
 // ─── LiveKit Speech-to-Speech Models ──────────────────────
-// Per-minute estimates for S2S models through LiveKit inference.
-// Computed from turn-based accumulation model; LiveKit adds ~10% inference margin.
+// OpenAI/Gemini S2S rates are computed dynamically via calcLiveKitS2sPerMinute()
+// because they depend on session length (turn-based accumulation).
 // Ultravox uses flat per-minute pricing (not token-based).
 export const LIVEKIT_S2S: Record<string, { perMinute: number }> = {
-  'openai-realtime':  { perMinute: calcLiveKitS2sPerMinute('openai-realtime') },
-  'gemini-live':      { perMinute: calcLiveKitS2sPerMinute('gemini-live') },
   'ultravox':         { perMinute: 0.055 },
 };
 
@@ -319,10 +317,10 @@ export const DIRECT_TTS: Record<string, number> = {
 };
 
 // LLM: per million tokens (direct OpenAI/Google pricing)
-export const DIRECT_LLM: Record<string, { input: number; output: number }> = {
-  'gpt-5.2':          { input: 1.75,  output: 14.00 },
-  'gemini-3-pro':     { input: 4.00,  output: 18.00 },
-  'gemini-3-flash':   { input: 0.50,  output: 3.00 },
+export const DIRECT_LLM: Record<string, { input: number; cachedInput: number; output: number }> = {
+  'gpt-5.2':          { input: 1.75,  cachedInput: 0.175, output: 14.00 },
+  'gemini-3-pro':     { input: 4.00,  cachedInput: 0.40,  output: 18.00 },
+  'gemini-3-flash':   { input: 0.50,  cachedInput: 0.05,  output: 3.00 },
 };
 
 // ─── Speech-to-Speech Session Cost (Turn-Based Accumulation) ─────
@@ -352,16 +350,16 @@ export const DIRECT_LLM: Record<string, { input: number; output: number }> = {
  *
  * Returns total session cost in dollars.
  */
-export function calcS2sSessionCost(model: string): number {
+export function calcS2sSessionCost(model: string, sessionMinutes: number): number {
   const params = S2S_TOKEN_PARAMS[model];
   if (!params) return 0;
 
-  const { s2sUserTurnSec, s2sAgentTurnSec, s2sSilenceRatio, avgSessionMinutes } = ASSUMPTIONS;
+  const { s2sUserTurnSec, s2sAgentTurnSec, s2sSilenceRatio } = ASSUMPTIONS;
 
   // Turn cycle including silence gaps
   const activeTurnSec = s2sUserTurnSec + s2sAgentTurnSec;
   const turnCycleSec = activeTurnSec / (1 - s2sSilenceRatio);
-  const N = Math.max(1, Math.floor(avgSessionMinutes * 60 / turnCycleSec));
+  const N = Math.max(1, Math.floor(sessionMinutes * 60 / turnCycleSec));
 
   // New tokens generated per turn
   const newInputTokensPerTurn = s2sUserTurnSec * params.inputTokensPerSec;
@@ -389,23 +387,55 @@ export function calcS2sSessionCost(model: string): number {
 }
 
 /** Effective per-minute S2S rate averaged over a typical session. */
-export function calcS2sPerMinute(model: string): number {
-  return calcS2sSessionCost(model) / ASSUMPTIONS.avgSessionMinutes;
+export function calcS2sPerMinute(model: string, sessionMinutes: number): number {
+  return calcS2sSessionCost(model, sessionMinutes) / sessionMinutes;
 }
 
 /** LiveKit S2S rate = direct rate + ~10% inference margin. */
-export function calcLiveKitS2sPerMinute(model: string): number {
-  return calcS2sPerMinute(model) * 1.10;
+export function calcLiveKitS2sPerMinute(model: string, sessionMinutes: number): number {
+  return calcS2sPerMinute(model, sessionMinutes) * 1.10;
 }
 
-// ─── Speech-to-Speech Direct Pricing ─────────────────────
-// These are computed from calcS2sPerMinute() at module load time.
-// Ultravox uses flat per-minute pricing (not token-based).
-export const DIRECT_S2S: Record<string, { perMinute: number }> = {
-  'openai-realtime': { perMinute: calcS2sPerMinute('openai-realtime') },
-  'gemini-live':     { perMinute: calcS2sPerMinute('gemini-live') },
-  'ultravox':        { perMinute: 0.05 },
-};
+// ─── LLM Text Turn-Based Token Accumulation ─────────────
+//
+// Same triangular accumulation pattern as S2S, but for text tokens.
+// Each LLM call includes full conversation history as input context:
+//
+//   Turn 1: system prompt (fresh) + user message (fresh) → agent response
+//   Turn k: system prompt (cached) + prior turns (cached) + user message (fresh) → agent response
+//
+// Context is billed at the cached input rate (prompt caching).
+
+export interface LlmTextTurnResult {
+  turns: number;
+  totalFreshInputTokens: number;   // system prompt (turn 1) + new user messages
+  totalContextTokens: number;       // cached system prompt (turns 2+) + prior conversation
+  totalOutputTokens: number;        // agent responses
+}
+
+export function calcLlmTextTurnTokens(sessionMinutes: number): LlmTextTurnResult {
+  const { s2sUserTurnSec, s2sAgentTurnSec, s2sSilenceRatio,
+          llmSystemPromptTokens, llmNewInputTokensPerTurn, llmOutputTokensPerTurn } = ASSUMPTIONS;
+
+  // Same voice conversation cadence as S2S
+  const activeTurnSec = s2sUserTurnSec + s2sAgentTurnSec;
+  const turnCycleSec = activeTurnSec / (1 - s2sSilenceRatio);
+  const N = Math.max(1, Math.floor(sessionMinutes * 60 / turnCycleSec));
+
+  // Fresh input: system prompt (turn 1 only) + new user message each turn
+  const totalFreshInputTokens = llmSystemPromptTokens + N * llmNewInputTokensPerTurn;
+
+  // Output: agent response each turn
+  const totalOutputTokens = N * llmOutputTokensPerTurn;
+
+  // Cached context: system prompt (turns 2..N) + conversation history (triangular)
+  const cachedSystemTokens = Math.max(0, N - 1) * llmSystemPromptTokens;
+  const contextPerPriorTurn = llmNewInputTokensPerTurn + llmOutputTokensPerTurn;
+  const cachedConversationTokens = (N * (N - 1) / 2) * contextPerPriorTurn;
+  const totalContextTokens = cachedSystemTokens + cachedConversationTokens;
+
+  return { turns: N, totalFreshInputTokens, totalContextTokens, totalOutputTokens };
+}
 
 // ─── Ultravox S2S Pro Plan ────────────────────────────────
 // Source: https://www.ultravox.ai/pricing (Feb 2026)
@@ -443,7 +473,7 @@ export const AZURE_AKS = {
   controlPlane: 73,       // monthly control plane fee
   nodeMonthly: 70,        // D2s_v3 per node
   concurrentAgentsPerNode: 6,
-  avgSessionMinutes: 10,
+  avgSessionMinutes: 15,
 };
 
 // ─── Provider Subscription Tiers ─────────────────────────

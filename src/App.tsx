@@ -2,11 +2,12 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Header } from '@/components/Header';
 import { MinutesSlider } from '@/components/MinutesSlider';
+import { SessionSlider } from '@/components/SessionSlider';
 import { CostChart } from '@/components/CostChart';
 import { ComparisonTable } from '@/components/ComparisonTable';
 import { RestrictionNotes } from '@/components/RestrictionNotes';
 import { FAQ } from '@/components/FAQ';
-import { DEFAULT_STACKS, DEFAULT_MONTHLY_MINUTES, createNewStack } from '@/data/defaults';
+import { DEFAULT_STACKS, DEFAULT_MONTHLY_MINUTES, DEFAULT_SESSION_MINUTES, createNewStack } from '@/data/defaults';
 import { calculateCost } from '@/lib/cost-engine';
 import { decodeState, pushState } from '@/lib/url-state';
 import { CHART_COLORS } from '@/data/compatibility';
@@ -26,12 +27,17 @@ function App() {
     return decoded?.monthlyMinutes ?? DEFAULT_MONTHLY_MINUTES;
   });
 
+  const [sessionMinutes, setSessionMinutes] = useState(() => {
+    const decoded = decodeState(window.location.search);
+    return decoded?.sessionMinutes ?? DEFAULT_SESSION_MINUTES;
+  });
+
   const [focusedStackId, setFocusedStackId] = useState<string | null>(null);
 
   // Sync to URL
   useEffect(() => {
-    pushState(stacks, monthlyMinutes);
-  }, [stacks, monthlyMinutes]);
+    pushState(stacks, monthlyMinutes, sessionMinutes);
+  }, [stacks, monthlyMinutes, sessionMinutes]);
 
   const updateStack = useCallback((id: string, updates: Partial<StackConfig>) => {
     setStacks((prev) =>
@@ -54,6 +60,7 @@ function App() {
   const resetAll = useCallback(() => {
     setStacks(DEFAULT_STACKS);
     setMonthlyMinutes(DEFAULT_MONTHLY_MINUTES);
+    setSessionMinutes(DEFAULT_SESSION_MINUTES);
     setFocusedStackId(null);
   }, []);
 
@@ -65,11 +72,11 @@ function App() {
         id: s.id,
         label: s.label,
         color: CHART_COLORS[stacks.indexOf(s) % CHART_COLORS.length],
-        total: calculateCost(s, monthlyMinutes).total,
-        perMinute: monthlyMinutes > 0 ? calculateCost(s, monthlyMinutes).total / monthlyMinutes : 0,
+        total: calculateCost(s, monthlyMinutes, sessionMinutes).total,
+        perMinute: monthlyMinutes > 0 ? calculateCost(s, monthlyMinutes, sessionMinutes).total / monthlyMinutes : 0,
       }))
       .sort((a, b) => a.total - b.total);
-  }, [stacks, monthlyMinutes]);
+  }, [stacks, monthlyMinutes, sessionMinutes]);
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -91,7 +98,10 @@ function App() {
                 Reset
               </Button>
             </div>
-            <MinutesSlider value={monthlyMinutes} onChange={setMonthlyMinutes} />
+            <div className="space-y-6">
+              <MinutesSlider value={monthlyMinutes} onChange={setMonthlyMinutes} />
+              <SessionSlider value={sessionMinutes} onChange={setSessionMinutes} />
+            </div>
 
             {/* Quick cost cards */}
             <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -145,6 +155,7 @@ function App() {
             <CostChart
               stacks={stacks}
               monthlyMinutes={monthlyMinutes}
+              sessionMinutes={sessionMinutes}
               focusedStackId={focusedStackId}
               onFocusStack={setFocusedStackId}
             />
@@ -155,6 +166,7 @@ function App() {
             <ComparisonTable
               stacks={stacks}
               monthlyMinutes={monthlyMinutes}
+              sessionMinutes={sessionMinutes}
               focusedStackId={focusedStackId}
               onUpdateStack={updateStack}
               onRemoveStack={removeStack}

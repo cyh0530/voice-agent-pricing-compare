@@ -63,6 +63,7 @@ export const DEFAULT_STACKS: StackConfig[] = [
 ];
 
 export const DEFAULT_MONTHLY_MINUTES = 10000;
+export const DEFAULT_SESSION_MINUTES = 15;
 
 export function createNewStack(index: number): StackConfig {
   return {

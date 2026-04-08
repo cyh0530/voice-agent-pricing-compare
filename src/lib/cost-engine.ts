@@ -22,6 +22,7 @@ import {
   ASSUMPTIONS,
   calcS2sPerMinute,
   calcLiveKitS2sPerMinute,
+  calcLlmTextTurnTokens,
   type ProviderTier,
   CARTESIA_TIERS,
   ELEVENLABS_TURBO_TIERS,
@@ -32,7 +33,7 @@ import { STT_OPTIONS, TTS_OPTIONS } from '@/data/compatibility';
 
 // ─── Main Entry Point ─────────────────────────────────────
 
-export function calculateCost(stack: StackConfig, monthlyMinutes: number): CostBreakdown {
+export function calculateCost(stack: StackConfig, monthlyMinutes: number, sessionMinutes: number): CostBreakdown {
   const details: CostDetail[] = [];
   const warnings: string[] = [];
 
@@ -51,7 +52,7 @@ export function calculateCost(stack: StackConfig, monthlyMinutes: number): CostB
 
   if (stack.platform === 'livekit' && stack.hosting === 'cloud') {
     // Evaluate each plan's full cost (platform + WebRTC + observability + recording + inference)
-    const result = calcLiveKitCloudOptimal(stack, monthlyMinutes, isSpeechToSpeech, details);
+    const result = calcLiveKitCloudOptimal(stack, monthlyMinutes, isSpeechToSpeech, details, sessionMinutes);
     platform = result.platform;
     transport = result.transport;
     Object.assign(bestPlans, result.bestPlans);
@@ -74,7 +75,7 @@ export function calculateCost(stack: StackConfig, monthlyMinutes: number): CostB
     //   Baseline = avg concurrent sessions = monthlyMinutes / 43,200
     //   CPS ≈ peak concurrent / avg session duration in seconds
     //   Peak concurrent ≈ baseline × peak-to-avg ratio
-    const R = calcOptimalReserved(monthlyMinutes);
+    const R = calcOptimalReserved(monthlyMinutes, sessionMinutes);
     const reservedCost = R * PIPECAT_HOSTING.agent1x.reservedPerMin * MINUTES_PER_MONTH;
     details.push({
       category: 'Platform',
@@ -92,7 +93,7 @@ export function calculateCost(stack: StackConfig, monthlyMinutes: number): CostB
       if (stack.speechToSpeechModel === 'ultravox') {
         llm = calcUltravoxS2s(monthlyMinutes, details, bestPlans);
       } else {
-        const perMin = calcS2sPerMinute(stack.speechToSpeechModel);
+        const perMin = calcS2sPerMinute(stack.speechToSpeechModel, sessionMinutes);
         if (perMin > 0) {
           const s2sCost = monthlyMinutes * perMin;
           llm = s2sCost;
@@ -100,7 +101,7 @@ export function calculateCost(stack: StackConfig, monthlyMinutes: number): CostB
         }
       }
     } else {
-      const inf = calcDirectInference(stack, monthlyMinutes, details, bestPlans);
+      const inf = calcDirectInference(stack, monthlyMinutes, details, bestPlans, sessionMinutes);
       stt = inf.stt; llm = inf.llm; tts = inf.tts;
     }
   } else if (stack.hosting === 'self-hosted') {
@@ -121,7 +122,7 @@ export function calculateCost(stack: StackConfig, monthlyMinutes: number): CostB
       if (stack.speechToSpeechModel === 'ultravox') {
         llm = calcUltravoxS2s(monthlyMinutes, details, bestPlans);
       } else {
-        const perMin = calcS2sPerMinute(stack.speechToSpeechModel);
+        const perMin = calcS2sPerMinute(stack.speechToSpeechModel, sessionMinutes);
         if (perMin > 0) {
           const s2sCost = monthlyMinutes * perMin;
           llm = s2sCost;
@@ -129,7 +130,7 @@ export function calculateCost(stack: StackConfig, monthlyMinutes: number): CostB
         }
       }
     } else {
-      const inf = calcDirectInference(stack, monthlyMinutes, details, bestPlans);
+      const inf = calcDirectInference(stack, monthlyMinutes, details, bestPlans, sessionMinutes);
       stt = inf.stt; llm = inf.llm; tts = inf.tts;
     }
   }
@@ -166,6 +167,7 @@ function calcPlanFullCost(
   stack: StackConfig,
   minutes: number,
   isSpeechToSpeech: boolean,
+  sessionMinutes: number,
 ): number {
   // Agent session overage
   const agentOverage = Math.max(0, minutes - plan.includedAgentMinutes) * plan.agentMinuteRate;
@@ -200,13 +202,13 @@ function calcPlanFullCost(
       const s2sRate = LIVEKIT_S2S[stack.speechToSpeechModel];
       if (s2sRate) inferenceCost = minutes * s2sRate.perMinute;
     } else {
-      const perMin = calcLiveKitS2sPerMinute(stack.speechToSpeechModel);
+      const perMin = calcLiveKitS2sPerMinute(stack.speechToSpeechModel, sessionMinutes);
       if (perMin > 0) inferenceCost = minutes * perMin;
     }
   } else {
     const isScale = plan.name === 'Scale';
     inferenceCost += calcLiveKitSttCost(stack.sttModel, minutes, isScale);
-    inferenceCost += calcLiveKitLlmCost(stack.llmModel, minutes);
+    inferenceCost += calcLiveKitLlmCost(stack.llmModel, minutes, sessionMinutes);
     inferenceCost += calcLiveKitTtsCost(stack.ttsModel, minutes, isScale);
   }
 
@@ -220,14 +222,15 @@ function calcLiveKitCloudOptimal(
   stack: StackConfig,
   minutes: number,
   isSpeechToSpeech: boolean,
-  details: CostDetail[]
+  details: CostDetail[],
+  sessionMinutes: number,
 ): { platform: number; transport: number; recording: number; stt: number; llm: number; tts: number; bestPlans: Record<string, string> } {
   // Pick cheapest plan by total cost
   let bestTotal = Infinity;
   let bestPlanName = LIVEKIT_PLANS[0].name;
 
   for (const plan of LIVEKIT_PLANS) {
-    const total = calcPlanFullCost(plan, stack, minutes, isSpeechToSpeech);
+    const total = calcPlanFullCost(plan, stack, minutes, isSpeechToSpeech, sessionMinutes);
     if (total < bestTotal) {
       bestTotal = total;
       bestPlanName = plan.name;
@@ -329,7 +332,7 @@ function calcLiveKitCloudOptimal(
         details.push({ category: 'S2S Model', label: stack.speechToSpeechModel, formula: `${minutes} min × $${s2sRate.perMinute}/min`, amount: s2sCost });
       }
     } else {
-      const perMin = calcLiveKitS2sPerMinute(stack.speechToSpeechModel);
+      const perMin = calcLiveKitS2sPerMinute(stack.speechToSpeechModel, sessionMinutes);
       if (perMin > 0) {
         const s2sCost = minutes * perMin;
         llm = s2sCost;
@@ -338,7 +341,7 @@ function calcLiveKitCloudOptimal(
     }
   } else {
     stt = calcLiveKitStt(stack.sttModel, minutes, isScale, details);
-    llm = calcLiveKitLlm(stack.llmModel, minutes, details);
+    llm = calcLiveKitLlm(stack.llmModel, minutes, details, sessionMinutes);
     tts = calcLiveKitTts(stack.ttsModel, minutes, isScale, details);
   }
 
@@ -387,14 +390,16 @@ function calcLiveKitTtsCost(model: string, minutes: number, isScale: boolean): n
   return (totalChars / 1_000_000) * (isScale ? rates.scale : rates.buildShip);
 }
 
-function calcLiveKitLlmCost(model: string, minutes: number): number {
+function calcLiveKitLlmCost(model: string, minutes: number, sessionMinutes: number): number {
   const rates = LIVEKIT_LLM[model];
   if (!rates) return 0;
-  const totalInput = minutes * ASSUMPTIONS.avgInputTokensPerMinute;
-  const cachedInput = totalInput * ASSUMPTIONS.cacheHitRate;
-  const freshInput = totalInput - cachedInput;
-  const totalOutput = minutes * ASSUMPTIONS.avgOutputTokensPerMinute;
-  return (freshInput / 1_000_000) * rates.input + (cachedInput / 1_000_000) * rates.cachedInput + (totalOutput / 1_000_000) * rates.output;
+  const { totalFreshInputTokens, totalContextTokens, totalOutputTokens } = calcLlmTextTurnTokens(sessionMinutes);
+  const sessions = minutes / sessionMinutes;
+  return sessions * (
+    (totalFreshInputTokens / 1_000_000) * rates.input +
+    (totalContextTokens / 1_000_000) * rates.cachedInput +
+    (totalOutputTokens / 1_000_000) * rates.output
+  );
 }
 
 // ─── LiveKit Inference Costs ──────────────────────────────
@@ -425,23 +430,24 @@ function calcLiveKitTts(model: string, minutes: number, isScale: boolean, detail
   return cost;
 }
 
-function calcLiveKitLlm(model: string, minutes: number, details: CostDetail[]): number {
+function calcLiveKitLlm(model: string, minutes: number, details: CostDetail[], sessionMinutes: number): number {
   const rates = LIVEKIT_LLM[model];
   if (!rates) return 0;
-  const totalInput = minutes * ASSUMPTIONS.avgInputTokensPerMinute;
-  const cachedInput = totalInput * ASSUMPTIONS.cacheHitRate;
-  const freshInput = totalInput - cachedInput;
-  const totalOutput = minutes * ASSUMPTIONS.avgOutputTokensPerMinute;
+  const { turns, totalFreshInputTokens, totalContextTokens, totalOutputTokens } = calcLlmTextTurnTokens(sessionMinutes);
+  const sessions = minutes / sessionMinutes;
+  const freshTotal = sessions * totalFreshInputTokens;
+  const cachedTotal = sessions * totalContextTokens;
+  const outputTotal = sessions * totalOutputTokens;
 
-  const inputCost = (freshInput / 1_000_000) * rates.input;
-  const cachedCost = (cachedInput / 1_000_000) * rates.cachedInput;
-  const outputCost = (totalOutput / 1_000_000) * rates.output;
+  const inputCost = (freshTotal / 1_000_000) * rates.input;
+  const cachedCost = (cachedTotal / 1_000_000) * rates.cachedInput;
+  const outputCost = (outputTotal / 1_000_000) * rates.output;
   const cost = inputCost + cachedCost + outputCost;
 
   details.push({
     category: 'LLM',
     label: model,
-    formula: `Input: ${(freshInput / 1000).toFixed(0)}K tok × $${rates.input}/M + Cached: ${(cachedInput / 1000).toFixed(0)}K × $${rates.cachedInput}/M + Output: ${(totalOutput / 1000).toFixed(0)}K × $${rates.output}/M`,
+    formula: `${turns} turns/sess: Fresh ${(freshTotal / 1000).toFixed(0)}K × $${rates.input}/M + Cached ${(cachedTotal / 1000).toFixed(0)}K × $${rates.cachedInput}/M + Output ${(outputTotal / 1000).toFixed(0)}K × $${rates.output}/M`,
     amount: cost,
   });
   return cost;
@@ -473,18 +479,24 @@ function calcDirectTts(model: string, minutes: number, details: CostDetail[]): n
   return cost;
 }
 
-function calcDirectLlm(model: string, minutes: number, details: CostDetail[]): number {
+function calcDirectLlm(model: string, minutes: number, details: CostDetail[], sessionMinutes: number): number {
   const rates = DIRECT_LLM[model];
   if (!rates) return 0;
-  const totalInput = minutes * ASSUMPTIONS.avgInputTokensPerMinute;
-  const totalOutput = minutes * ASSUMPTIONS.avgOutputTokensPerMinute;
-  const inputCost = (totalInput / 1_000_000) * rates.input;
-  const outputCost = (totalOutput / 1_000_000) * rates.output;
-  const cost = inputCost + outputCost;
+  const { turns, totalFreshInputTokens, totalContextTokens, totalOutputTokens } = calcLlmTextTurnTokens(sessionMinutes);
+  const sessions = minutes / sessionMinutes;
+  const freshTotal = sessions * totalFreshInputTokens;
+  const cachedTotal = sessions * totalContextTokens;
+  const outputTotal = sessions * totalOutputTokens;
+
+  const inputCost = (freshTotal / 1_000_000) * rates.input;
+  const cachedCost = (cachedTotal / 1_000_000) * rates.cachedInput;
+  const outputCost = (outputTotal / 1_000_000) * rates.output;
+  const cost = inputCost + cachedCost + outputCost;
+
   details.push({
     category: 'LLM',
     label: model,
-    formula: `Input: ${(totalInput / 1000).toFixed(0)}K tok × $${rates.input}/M + Output: ${(totalOutput / 1000).toFixed(0)}K × $${rates.output}/M (direct)`,
+    formula: `${turns} turns/sess: Fresh ${(freshTotal / 1000).toFixed(0)}K × $${rates.input}/M + Cached ${(cachedTotal / 1000).toFixed(0)}K × $${rates.cachedInput}/M + Output ${(outputTotal / 1000).toFixed(0)}K × $${rates.output}/M (direct)`,
     amount: cost,
   });
   return cost;
@@ -541,8 +553,9 @@ function calcDirectInference(
   minutes: number,
   details: CostDetail[],
   bestPlans: Record<string, string>,
+  sessionMinutes: number,
 ): { stt: number; llm: number; tts: number } {
-  const llm = calcDirectLlm(stack.llmModel, minutes, details);
+  const llm = calcDirectLlm(stack.llmModel, minutes, details, sessionMinutes);
 
   const isCartesiaStt = stack.sttModel === 'cartesia-ink-whisper';
   const isCartesiaTts = stack.ttsModel === 'cartesia-sonic-3';
@@ -990,13 +1003,13 @@ function resolveSourceUrl(detail: CostDetail): string | undefined {
 // Baseline = average concurrent sessions derived from monthly minutes.
 // CPS = peak call arrival rate, estimated from peak concurrent / avg session duration.
 
-function calcOptimalReserved(monthlyMinutes: number): number {
+function calcOptimalReserved(monthlyMinutes: number, sessionMinutes: number): number {
   if (monthlyMinutes <= 0) return 0;
   const avgConcurrent = monthlyMinutes / MINUTES_PER_MONTH;
   const baseline = avgConcurrent;
 
   const peakConcurrent = avgConcurrent * ASSUMPTIONS.peakToAvgRatio;
-  const avgSessionSec = ASSUMPTIONS.avgSessionMinutes * 60;
+  const avgSessionSec = sessionMinutes * 60;
   const cps = peakConcurrent / avgSessionSec;
   const burst = cps * PIPECAT_CAPACITY_PLANNING.idleCreationDelaySec;
 
@@ -1019,9 +1032,9 @@ function buildChartTicks(maxMinutes: number): number[] {
   return [...BASE_CHART_TICKS, ...extra];
 }
 
-export function generateChartData(stack: StackConfig, maxMinutes = 100000): ChartPoint[] {
+export function generateChartData(stack: StackConfig, maxMinutes = 100000, sessionMinutes = ASSUMPTIONS.avgSessionMinutes): ChartPoint[] {
   return buildChartTicks(maxMinutes).map((minutes) => ({
     minutes,
-    cost: calculateCost(stack, minutes).total,
+    cost: calculateCost(stack, minutes, sessionMinutes).total,
   }));
 }
