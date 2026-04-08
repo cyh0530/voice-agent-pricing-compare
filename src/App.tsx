@@ -200,7 +200,7 @@ function App() {
                 { label: 'ElevenLabs', href: 'https://elevenlabs.io/pricing' },
                 { label: 'Soniox', href: 'https://soniox.com/pricing' },
                 { label: 'OpenAI Realtime', href: 'https://developers.openai.com/api/docs/models/gpt-realtime' },
-                { label: 'Gemini Live', href: 'https://ai.google.dev/gemini-api/docs/pricing#gemini-2.5-flash-native-audio' },
+                { label: 'Gemini 3.1 Flash Live', href: 'https://ai.google.dev/gemini-api/docs/pricing#gemini-3.1-flash-live-preview' },
                 { label: 'Azure', href: 'https://azure.microsoft.com/en-us/pricing/' },
               ].map(({ label, href }) => (
                 <a

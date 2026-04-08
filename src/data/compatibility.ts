@@ -40,7 +40,7 @@ export const TTS_OPTIONS: SelectOption<TtsModel>[] = [
 
 export const S2S_OPTIONS: SelectOption<SpeechToSpeechModel>[] = [
   { value: 'openai-realtime', label: 'Realtime API', provider: 'OpenAI' },
-  { value: 'gemini-live', label: 'Gemini Live', provider: 'Google' },
+  { value: 'gemini-live', label: 'Gemini 3.1 Flash Live', provider: 'Google' },
   { value: 'ultravox', label: 'Ultravox', provider: 'Ultravox' },
 ];
 
