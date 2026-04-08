@@ -23,8 +23,9 @@ export const META: Record<string, PricingMeta> = {
     assumptions: [
       'OpenAI gpt-realtime (GA): audio input 10 tok/sec @ $32/1M, output 20 tok/sec @ $64/1M, cached $0.40/1M',
       'Gemini 2.5 Flash Native Audio (Live API): audio ~25 tok/sec (est.), input $3/1M, output $12/1M',
-      '66/24 duty cycle applied (user speaks 66%, agent speaks 24%, ~10% silence)',
-      'Session overhead: 1.15× for OpenAI (cheap caching), 1.3× for Gemini',
+      'Turn-based context accumulation: each turn re-processes all prior audio (triangular token growth)',
+      'Turn structure: user speaks ~45s, agent responds ~12s, ~10% silence → ~9 turns per 10-min session',
+      'OpenAI cached audio context at $0.40/1M (80× cheaper); Gemini has no documented cache discount',
     ],
   },
   ultravox: {
@@ -175,12 +176,61 @@ export const LIVEKIT_LLM: Record<string, { input: number; cachedInput: number; o
   'gemini-3-flash':   { input: 0.50,  cachedInput: 0.05,  output: 3.00 },
 };
 
+// ─── Assumptions for Conversion ───────────────────────────
+// Placed before S2S constants because calcS2sSessionCost() depends on these values.
+
+export const ASSUMPTIONS = {
+  sttDutyRatio: 0.66,             // user speaks ~66% of session time
+  ttsDutyRatio: 0.24,             // agent speaks ~24% of session time (~10% is silence)
+  avgCharsPerMinuteTTS: 900,      // ~150 words/min * ~6 chars/word (during active TTS)
+  avgInputTokensPerMinute: 800,   // conversation context growing
+  avgOutputTokensPerMinute: 400,  // agent response tokens
+  cacheHitRate: 0.3,              // 30% of input tokens are cached
+  avgDownstreamMBPerMinute: 0.24, // Opus voice ~32kbps downstream to participant
+  avgSessionMinutes: 10,          // typical voice agent session length
+  peakToAvgRatio: 2,              // peak concurrent ≈ 2× average (standard traffic assumption)
+  s2sUserTurnSec: 45,             // user speaks ~45 sec per turn
+  s2sAgentTurnSec: 12,            // agent responds ~12 sec per turn
+  s2sSilenceRatio: 0.10,          // ~10% silence between turns
+};
+
+// ─── Speech-to-Speech Token Parameters ───────────────────
+//
+// Raw token rates and per-token prices for S2S models.
+// Used by calcS2sSessionCost() to compute turn-based accumulation.
+
+export interface S2sTokenParams {
+  inputTokensPerSec: number;
+  outputTokensPerSec: number;
+  inputPricePerMillion: number;
+  cachedInputPricePerMillion: number | null; // null = no documented cache discount
+  outputPricePerMillion: number;
+}
+
+export const S2S_TOKEN_PARAMS: Record<string, S2sTokenParams> = {
+  'openai-realtime': {
+    inputTokensPerSec: 10,             // 1 per 100ms (OpenAI docs)
+    outputTokensPerSec: 20,            // 1 per 50ms (OpenAI docs)
+    inputPricePerMillion: 32.00,
+    cachedInputPricePerMillion: 0.40,  // cached audio input nearly free
+    outputPricePerMillion: 64.00,
+  },
+  'gemini-live': {
+    inputTokensPerSec: 25,             // ~25 tok/sec (community-measured estimate)
+    outputTokensPerSec: 25,            // same rate for output audio
+    inputPricePerMillion: 3.00,
+    cachedInputPricePerMillion: null,   // no documented cache discount for Live API
+    outputPricePerMillion: 12.00,
+  },
+};
+
 // ─── LiveKit Speech-to-Speech Models ──────────────────────
 // Per-minute estimates for S2S models through LiveKit inference.
-// Derivation: see DIRECT_S2S below for full token math; LiveKit adds ~10% inference margin.
+// Computed from turn-based accumulation model; LiveKit adds ~10% inference margin.
+// Ultravox uses flat per-minute pricing (not token-based).
 export const LIVEKIT_S2S: Record<string, { perMinute: number }> = {
-  'openai-realtime':  { perMinute: 0.045 },
-  'gemini-live':      { perMinute: 0.012 },
+  'openai-realtime':  { perMinute: calcLiveKitS2sPerMinute('openai-realtime') },
+  'gemini-live':      { perMinute: calcLiveKitS2sPerMinute('gemini-live') },
   'ultravox':         { perMinute: 0.055 },
 };
 
@@ -275,38 +325,85 @@ export const DIRECT_LLM: Record<string, { input: number; output: number }> = {
   'gemini-3-flash':   { input: 0.50,  output: 3.00 },
 };
 
+// ─── Speech-to-Speech Session Cost (Turn-Based Accumulation) ─────
+//
+// Each conversational turn re-processes ALL prior audio as input context,
+// creating a triangular token growth pattern:
+//
+//   Turn 1: processes T_new input tokens (no prior context)
+//   Turn 2: processes T_new + T_ctx tokens (re-reads turn 1 audio)
+//   Turn k: processes T_new + (k-1) × T_ctx tokens
+//
+// Total context tokens across N turns = N×(N-1)/2 × T_ctx (triangular sum)
+//
+// Context is billed at the cached input rate if available (OpenAI: $0.40/1M),
+// or at full input price if no cache discount (Gemini: $3.00/1M).
+//
+// Sources:
+//   OpenAI: https://developers.openai.com/api/docs/models/gpt-realtime
+//   Gemini: https://ai.google.dev/gemini-api/docs/pricing#gemini-2.5-flash-native-audio
+
+/**
+ * Compute S2S cost for one session with turn-based context accumulation.
+ *
+ * Each turn re-processes all prior audio as input context (triangular growth):
+ *   Turn k input = new_user_audio + context(all prior user + agent audio from turns 1..k-1)
+ *   Turn k output = new_agent_audio (always fresh, no accumulation)
+ *
+ * Returns total session cost in dollars.
+ */
+export function calcS2sSessionCost(model: string): number {
+  const params = S2S_TOKEN_PARAMS[model];
+  if (!params) return 0;
+
+  const { s2sUserTurnSec, s2sAgentTurnSec, s2sSilenceRatio, avgSessionMinutes } = ASSUMPTIONS;
+
+  // Turn cycle including silence gaps
+  const activeTurnSec = s2sUserTurnSec + s2sAgentTurnSec;
+  const turnCycleSec = activeTurnSec / (1 - s2sSilenceRatio);
+  const N = Math.max(1, Math.floor(avgSessionMinutes * 60 / turnCycleSec));
+
+  // New tokens generated per turn
+  const newInputTokensPerTurn = s2sUserTurnSec * params.inputTokensPerSec;
+  const newOutputTokensPerTurn = s2sAgentTurnSec * params.outputTokensPerSec;
+
+  // Context from each prior turn includes BOTH user and agent audio
+  const contextTokensPerPriorTurn =
+    s2sUserTurnSec * params.inputTokensPerSec +
+    s2sAgentTurnSec * params.outputTokensPerSec;
+
+  // Fresh tokens (new audio each turn)
+  const totalFreshInputTokens = N * newInputTokensPerTurn;
+  const totalOutputTokens = N * newOutputTokensPerTurn;
+
+  // Context re-processing (triangular sum: turn k re-reads (k-1) prior turns)
+  const totalContextTokens = (N * (N - 1) / 2) * contextTokensPerPriorTurn;
+
+  // Cost calculation
+  const freshInputCost = (totalFreshInputTokens / 1_000_000) * params.inputPricePerMillion;
+  const contextRate = params.cachedInputPricePerMillion ?? params.inputPricePerMillion;
+  const contextCost = (totalContextTokens / 1_000_000) * contextRate;
+  const outputCost = (totalOutputTokens / 1_000_000) * params.outputPricePerMillion;
+
+  return freshInputCost + contextCost + outputCost;
+}
+
+/** Effective per-minute S2S rate averaged over a typical session. */
+export function calcS2sPerMinute(model: string): number {
+  return calcS2sSessionCost(model) / ASSUMPTIONS.avgSessionMinutes;
+}
+
+/** LiveKit S2S rate = direct rate + ~10% inference margin. */
+export function calcLiveKitS2sPerMinute(model: string): number {
+  return calcS2sPerMinute(model) * 1.10;
+}
+
 // ─── Speech-to-Speech Direct Pricing ─────────────────────
-//
-// OpenAI gpt-realtime (GA model, not preview):
-//   Source: https://developers.openai.com/api/docs/models/gpt-realtime
-//   Audio input:  10 tokens/sec (1 per 100ms) → 600 tokens/min @ $32/1M
-//   Audio output: 20 tokens/sec (1 per 50ms)  → 1,200 tokens/min @ $64/1M
-//   Cached audio input: $0.40/1M (nearly free — context re-processing is cheap)
-//   With 66/24 duty cycle (user speaks 66%, agent 24%, ~10% silence):
-//     Input:  0.66 × 600 = 396 tokens → $0.01267/min
-//     Output: 0.24 × 1,200 = 288 tokens → $0.01843/min
-//     Marginal (new audio only): $0.0311/min
-//   Session overhead: entire conversation is re-sent each turn, but cached
-//     audio input at $0.40/1M makes this nearly free (~1.15× multiplier).
-//   Estimated average: $0.0311 × 1.15 ≈ $0.036/min
-//
-// Gemini Live (gemini-2.5-flash-native-audio, Live API):
-//   Source: https://ai.google.dev/gemini-api/docs/pricing#gemini-2.5-flash-native-audio
-//   Audio tokenization: ~25 tokens/sec (community-measured estimate)
-//   Audio input:  $3.00/1M tokens, Audio output: $12.00/1M tokens
-//   With 66/24 duty cycle (user 66%, agent 24%, ~10% silence):
-//     Input:  0.66 × 1,500 = 990 tokens → $0.00297/min
-//     Output: 0.24 × 1,500 = 360 tokens → $0.00432/min
-//     Marginal: $0.0073/min
-//   Session overhead: ~1.3× (cheap tokens, minimal context impact)
-//   Estimated average: $0.0073 × 1.3 ≈ $0.0095/min
-//
-// Note: actual costs vary with session length, turn frequency, system prompt
-// size, and context management strategy. These are estimates for a typical
-// 10-minute voice agent session.
+// These are computed from calcS2sPerMinute() at module load time.
+// Ultravox uses flat per-minute pricing (not token-based).
 export const DIRECT_S2S: Record<string, { perMinute: number }> = {
-  'openai-realtime': { perMinute: 0.036 },
-  'gemini-live':     { perMinute: 0.0095 },
+  'openai-realtime': { perMinute: calcS2sPerMinute('openai-realtime') },
+  'gemini-live':     { perMinute: calcS2sPerMinute('gemini-live') },
   'ultravox':        { perMinute: 0.05 },
 };
 
@@ -347,20 +444,6 @@ export const AZURE_AKS = {
   nodeMonthly: 70,        // D2s_v3 per node
   concurrentAgentsPerNode: 6,
   avgSessionMinutes: 10,
-};
-
-// ─── Assumptions for Conversion ───────────────────────────
-
-export const ASSUMPTIONS = {
-  sttDutyRatio: 0.66,             // user speaks ~66% of session time
-  ttsDutyRatio: 0.24,             // agent speaks ~24% of session time (~10% is silence)
-  avgCharsPerMinuteTTS: 900,      // ~150 words/min * ~6 chars/word (during active TTS)
-  avgInputTokensPerMinute: 800,   // conversation context growing
-  avgOutputTokensPerMinute: 400,  // agent response tokens
-  cacheHitRate: 0.3,              // 30% of input tokens are cached
-  avgDownstreamMBPerMinute: 0.24, // Opus voice ~32kbps downstream to participant
-  avgSessionMinutes: 10,          // typical voice agent session length
-  peakToAvgRatio: 2,              // peak concurrent ≈ 2× average (standard traffic assumption)
 };
 
 // ─── Provider Subscription Tiers ─────────────────────────
