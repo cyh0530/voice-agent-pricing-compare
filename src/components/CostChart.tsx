@@ -24,7 +24,7 @@ function formatMinutes(n: number): string {
 }
 
 /** Generate denser chart points within a zoomed range so Chart.js doesn't interpolate across huge gaps. */
-function generateDenseChartData(stack: StackConfig, basePoints: ChartPoint[], zoomMin: number, zoomMax: number): ChartPoint[] {
+function generateDenseChartData(stack: StackConfig, basePoints: ChartPoint[], zoomMin: number, zoomMax: number, sessionMinutes: number): ChartPoint[] {
   // Start with the base points
   const existing = new Set(basePoints.map((p) => p.minutes));
   const extra: ChartPoint[] = [];
@@ -37,7 +37,7 @@ function generateDenseChartData(stack: StackConfig, basePoints: ChartPoint[], zo
       const minutes = Math.round(zoomMin + step * i);
       if (!existing.has(minutes)) {
         existing.add(minutes);
-        extra.push({ minutes, cost: calculateCost(stack, minutes).total });
+        extra.push({ minutes, cost: calculateCost(stack, minutes, sessionMinutes).total });
       }
     }
   }
@@ -259,11 +259,12 @@ function Navigator({ chartData, rangeLeft, rangeRight, onChange, onReset, isZoom
 interface CostChartProps {
   stacks: StackConfig[];
   monthlyMinutes: number;
+  sessionMinutes: number;
   focusedStackId: string | null;
   onFocusStack: (id: string | null) => void;
 }
 
-export function CostChart({ stacks, monthlyMinutes, focusedStackId, onFocusStack }: CostChartProps) {
+export function CostChart({ stacks, monthlyMinutes, sessionMinutes, focusedStackId, onFocusStack }: CostChartProps) {
   const visibleStacks = stacks.filter((s) => s.visible);
 
   // Range as 0-1 fractions of the full x-axis
@@ -290,18 +291,18 @@ export function CostChart({ stacks, monthlyMinutes, focusedStackId, onFocusStack
     return visibleStacks.map((stack, i) => ({
       stack,
       color: CHART_COLORS[i % CHART_COLORS.length],
-      points: generateChartData(stack, monthlyMinutes),
+      points: generateChartData(stack, monthlyMinutes, sessionMinutes),
     }));
-  }, [visibleStacks, monthlyMinutes]);
+  }, [visibleStacks, monthlyMinutes, sessionMinutes]);
 
   // Dense data series for the main chart when zoomed
   const mainSeriesData = useMemo(() => {
     if (!isZoomed) return baseSeriesData;
     return baseSeriesData.map((series) => ({
       ...series,
-      points: generateDenseChartData(series.stack, series.points, zoomMin, zoomMax),
+      points: generateDenseChartData(series.stack, series.points, zoomMin, zoomMax, sessionMinutes),
     }));
-  }, [baseSeriesData, isZoomed, zoomMin, zoomMax]);
+  }, [baseSeriesData, isZoomed, zoomMin, zoomMax, sessionMinutes]);
 
   // Navigator minimap data (always full range, sparse)
   const fullChartData = useMemo(() => ({
