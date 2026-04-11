@@ -55,6 +55,7 @@ export function calculateCost(stack: StackConfig, monthlyMinutes: number, sessio
     const result = calcLiveKitCloudOptimal(stack, monthlyMinutes, isSpeechToSpeech, details, sessionMinutes);
     platform = result.platform;
     transport = result.transport;
+    noiseCancellation = result.noiseCancellation;
     Object.assign(bestPlans, result.bestPlans);
     stt = result.stt;
     llm = result.llm;
@@ -136,8 +137,11 @@ export function calculateCost(stack: StackConfig, monthlyMinutes: number, sessio
   }
 
   // ── Noise Cancellation (Krisp) ──
+  // LiveKit Cloud: handled by plan optimizer (allotment varies by plan)
 
-  noiseCancellation = calcNoiseCancellation(stack, monthlyMinutes, details);
+  if (!(stack.platform === 'livekit' && stack.hosting === 'cloud')) {
+    noiseCancellation = calcNoiseCancellation(stack, monthlyMinutes, details);
+  }
 
   // ── Recording (non-LiveKit Cloud; LiveKit Cloud recording handled by plan optimizer) ──
 
@@ -212,10 +216,13 @@ function calcPlanFullCost(
     inferenceCost += calcLiveKitTtsCost(stack.ttsModel, minutes, isScale);
   }
 
+  // Krisp BVC
+  const krispBvcOverage = Math.max(0, minutes - plan.includedKrispBvcMinutes) * plan.krispBvcOverageRate;
+
   // Subtract included inference credits
   inferenceCost = Math.max(0, inferenceCost - plan.includedInferenceCredits);
 
-  return plan.monthlyFee + agentOverage + webRtcOverage + obsOverage + recordingCost + dataTransferOverage + inferenceCost;
+  return plan.monthlyFee + agentOverage + webRtcOverage + obsOverage + recordingCost + dataTransferOverage + krispBvcOverage + inferenceCost;
 }
 
 function calcLiveKitCloudOptimal(
@@ -224,7 +231,7 @@ function calcLiveKitCloudOptimal(
   isSpeechToSpeech: boolean,
   details: CostDetail[],
   sessionMinutes: number,
-): { platform: number; transport: number; recording: number; stt: number; llm: number; tts: number; bestPlans: Record<string, string> } {
+): { platform: number; transport: number; noiseCancellation: number; recording: number; stt: number; llm: number; tts: number; bestPlans: Record<string, string> } {
   // Pick cheapest plan by total cost
   let bestTotal = Infinity;
   let bestPlanName = LIVEKIT_PLANS[0].name;
@@ -318,6 +325,18 @@ function calcLiveKitCloudOptimal(
     recordingCost = transcodeCost + storageCost;
   }
 
+  // Krisp BVC
+  const krispBvcOverage = Math.max(0, minutes - plan.includedKrispBvcMinutes);
+  const krispBvcCost = krispBvcOverage * plan.krispBvcOverageRate;
+  details.push({
+    category: 'Noise Cancellation',
+    label: 'Krisp BVC',
+    formula: krispBvcOverage > 0
+      ? `(${minutes.toLocaleString()} − ${plan.includedKrispBvcMinutes.toLocaleString()} included) × $${plan.krispBvcOverageRate}/min`
+      : `${minutes.toLocaleString()} min within ${plan.includedKrispBvcMinutes.toLocaleString()} included`,
+    amount: krispBvcCost,
+  });
+
   // Inference
   let stt = 0;
   let llm = 0;
@@ -371,7 +390,7 @@ function calcLiveKitCloudOptimal(
     bestPlans['STT'] = sttProvider ? `${sttProvider} ${bestPlanName}` : bestPlanName;
     bestPlans['TTS'] = ttsProvider ? `${ttsProvider} ${bestPlanName}` : bestPlanName;
   }
-  return { platform: totalPlatform, transport: webRtcCost + dataTransferCost, recording: recordingCost, stt, llm, tts, bestPlans };
+  return { platform: totalPlatform, transport: webRtcCost + dataTransferCost, noiseCancellation: krispBvcCost, recording: recordingCost, stt, llm, tts, bestPlans };
 }
 
 // Cost-only helpers (no detail push) for plan comparison
@@ -861,10 +880,7 @@ function calcRecording(stack: StackConfig, minutes: number, details: CostDetail[
 // ─── Noise Cancellation (Krisp) ───────────────────────────
 
 function calcNoiseCancellation(stack: StackConfig, minutes: number, details: CostDetail[]): number {
-  if (stack.platform === 'livekit' && stack.hosting === 'cloud') {
-    details.push({ category: 'Noise Cancellation', label: 'Krisp (included)', formula: 'Included with LiveKit Cloud', amount: 0 });
-    return 0;
-  }
+  // LiveKit Cloud: Krisp BVC handled by plan optimizer (calcLiveKitCloudOptimal)
 
   if (stack.platform === 'pipecat' && stack.hosting === 'cloud') {
     const billable = Math.max(0, minutes - KRISP_VIVA.freeMinutes);
@@ -940,7 +956,7 @@ function resolveSourceUrl(detail: CostDetail): string | undefined {
   // ── Noise Cancellation ──
   // Verified: "Krisp" is on livekit.io/pricing, "Krisp VIVA" on pipecat-cloud,
   // "Noise cancellation powered by Krisp" on daily.co/pricing/video-sdk
-  if (label === 'Krisp (included)')
+  if (label === 'Krisp BVC')
     return `https://livekit.io/pricing#:~:text=${frag('Krisp')}`;
   if (label === 'Krisp VIVA')
     return 'https://www.daily.co/pricing/pipecat-cloud/#krisp-viva';
