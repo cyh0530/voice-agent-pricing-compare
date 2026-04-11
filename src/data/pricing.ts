@@ -5,12 +5,13 @@ import type { PricingMeta } from './types';
 export const META: Record<string, PricingMeta> = {
   livekit: {
     sourceUrls: ['https://livekit.io/pricing', 'https://livekit.io/pricing/inference'],
-    lastVerifiedAt: '2026-02-17',
+    lastVerifiedAt: '2026-04-11',
     assumptions: [
       'Ship plan: $50/mo, 5K agent min, 150K WebRTC min, 5K observability min, 600 transcode min, $5 inference credits',
       'Scale plan: $500/mo, 50K agent min, 1.5M WebRTC min, 50K observability min, 8K transcode min, $50 inference credits',
       'Build plan excluded (dev-only, 1 agent deployment, 5 concurrent sessions)',
       'Enterprise plan excluded (custom pricing)',
+      'Krisp BVC: Ship 1K min/mo included, Scale 10K min/mo included, then $0.0012/min (effective May 1 2026)',
       'S2S rates estimated with ~10% inference margin over direct provider pricing',
     ],
   },
@@ -83,8 +84,9 @@ export const META: Record<string, PricingMeta> = {
 };
 
 // ─── LiveKit Cloud Plans ──────────────────────────────────
-// Source: https://livekit.io/pricing (Feb 2026)
+// Source: https://livekit.io/pricing (Apr 2026)
 // Build plan excluded: dev-only (1 deployment, 5 concurrent, community support)
+// Krisp BVC: billed at $0.0012/min after plan allotment (effective May 1, 2026)
 
 export interface LiveKitPlan {
   name: string;
@@ -98,6 +100,9 @@ export interface LiveKitPlan {
   // Agent observability (session recordings)
   includedObservabilityMinutes: number;
   observabilityOverageRate: number;
+  // Krisp Background Voice Cancellation (BVC)
+  includedKrispBvcMinutes: number;
+  krispBvcOverageRate: number;
   // Recording & export (transcode minutes, shared with stream import)
   includedTranscodeMinutes: number;
   transcodeAudioRate: number;
@@ -121,6 +126,8 @@ export const LIVEKIT_PLANS: LiveKitPlan[] = [
     webRtcOverageRate: 0.0005,
     includedObservabilityMinutes: 5000,
     observabilityOverageRate: 0.005,
+    includedKrispBvcMinutes: 1000,
+    krispBvcOverageRate: 0.0012,
     includedTranscodeMinutes: 600,
     transcodeAudioRate: 0.005,
     transcodeVideoRate: 0.02,
@@ -139,6 +146,8 @@ export const LIVEKIT_PLANS: LiveKitPlan[] = [
     webRtcOverageRate: 0.0004,
     includedObservabilityMinutes: 50000,
     observabilityOverageRate: 0.005,
+    includedKrispBvcMinutes: 10000,
+    krispBvcOverageRate: 0.0012,
     includedTranscodeMinutes: 8000,
     transcodeAudioRate: 0.004,
     transcodeVideoRate: 0.015,
